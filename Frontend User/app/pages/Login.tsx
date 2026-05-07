@@ -14,6 +14,8 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [loginMode, setLoginMode] = useState<'user' | 'admin'>('user');
+  const [adminLoading, setAdminLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,6 +23,21 @@ export default function Login() {
 
     if (!email || !password) {
       setError('Please fill in all fields');
+      return;
+    }
+
+    if (loginMode === 'admin') {
+      setAdminLoading(true);
+      setTimeout(() => {
+        if (email === 'admin@platform.com' && password === 'admin123') {
+          localStorage.setItem('adminToken', 'mock-jwt-token');
+          localStorage.setItem('adminEmail', email);
+          navigate('/admin');
+        } else {
+          setError('Invalid admin credentials. Try admin@platform.com / admin123');
+        }
+        setAdminLoading(false);
+      }, 800);
       return;
     }
 
@@ -47,27 +64,56 @@ export default function Login() {
             <span className="text-2xl font-semibold">Lendly</span>
           </Link>
           <h1 className="text-3xl font-semibold mb-2">Welcome back</h1>
-          <p className="text-muted-foreground">Log in to your account to continue</p>
+          <p className="text-muted-foreground">
+            {loginMode === 'admin'
+              ? 'Log in to your admin account to manage the platform'
+              : 'Log in to your account to continue'}
+          </p>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle>Login</CardTitle>
             <CardDescription>
-              Enter your credentials to access your account
+              {loginMode === 'admin'
+                ? 'Enter your admin credentials to continue'
+                : 'Enter your credentials to access your account'}
             </CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <Button
+                type="button"
+                variant={loginMode === 'user' ? 'default' : 'outline'}
+                onClick={() => {
+                  setLoginMode('user');
+                  setError('');
+                }}
+              >
+                User Login
+              </Button>
+              <Button
+                type="button"
+                variant={loginMode === 'admin' ? 'default' : 'outline'}
+                onClick={() => {
+                  setLoginMode('admin');
+                  setError('');
+                }}
+              >
+                Admin Login
+              </Button>
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder={loginMode === 'admin' ? 'admin@platform.com' : 'you@example.com'}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  disabled={isLoading}
+                  disabled={isLoading || adminLoading}
                 />
               </div>
 
@@ -80,7 +126,7 @@ export default function Login() {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    disabled={isLoading}
+                    disabled={isLoading || adminLoading}
                   />
                   <button
                     type="button"
@@ -98,21 +144,35 @@ export default function Login() {
                 </div>
               )}
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? 'Logging in...' : 'Log In'}
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isLoading || adminLoading}
+              >
+                {loginMode === 'admin'
+                  ? adminLoading
+                    ? 'Signing in...'
+                    : 'Sign In as Admin'
+                  : isLoading
+                    ? 'Logging in...'
+                    : 'Log In'}
               </Button>
 
               <div className="text-center text-sm text-muted-foreground">
-                Demo: Use any email/password to login
+                {loginMode === 'admin'
+                  ? 'Demo: admin@platform.com / admin123'
+                  : 'Demo: Use any email/password to login'}
               </div>
             </form>
 
-            <div className="mt-6 text-center text-sm">
-              <span className="text-muted-foreground">Don't have an account? </span>
-              <Link to="/signup" className="text-primary hover:underline">
-                Sign up
-              </Link>
-            </div>
+            {loginMode === 'user' && (
+              <div className="mt-6 text-center text-sm">
+                <span className="text-muted-foreground">Don't have an account? </span>
+                <Link to="/signup" className="text-primary hover:underline">
+                  Sign up
+                </Link>
+              </div>
+            )}
           </CardContent>
         </Card>
 

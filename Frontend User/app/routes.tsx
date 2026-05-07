@@ -3,7 +3,13 @@ import Home from "./pages/Home";
 import ItemDetail from "./pages/ItemDetail";
 import AddListing from "./pages/AddListing";
 import Dashboard from "./pages/Dashboard";
-import AdminDashboard from "./pages/AdminDashboard";
+import AdminDashboard from "../../Frontend Admin/app/pages/AdminDashboard";
+import UsersPage from "../../Frontend Admin/app/pages/UsersPage";
+import ListingsPage from "../../Frontend Admin/app/pages/ListingsPage";
+import RequestsPage from "../../Frontend Admin/app/pages/RequestsPage";
+import OverduePage from "../../Frontend Admin/app/pages/OverduePage";
+import DisputesPage from "../../Frontend Admin/app/pages/DisputesPage";
+import AnalyticsPage from "../../Frontend Admin/app/pages/AnalyticsPage";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Account from "./pages/Account";
@@ -81,6 +87,30 @@ export const router = createBrowserRouter([
   {
     path: "/admin",
     Component: AdminDashboard,
+  },
+  {
+    path: "/admin/users",
+    Component: UsersPage,
+  },
+  {
+    path: "/admin/listings",
+    Component: ListingsPage,
+  },
+  {
+    path: "/admin/requests",
+    Component: RequestsPage,
+  },
+  {
+    path: "/admin/overdue",
+    Component: OverduePage,
+  },
+  {
+    path: "/admin/disputes",
+    Component: DisputesPage,
+  },
+  {
+    path: "/admin/analytics",
+    Component: AnalyticsPage,
   },
   {
     path: "*",

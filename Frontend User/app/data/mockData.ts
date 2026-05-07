@@ -46,6 +46,20 @@ export interface BorrowRequest {
   returnedAt?: string;
 }
 
+const FEATURED_OVERRIDES_KEY = "lendlyFeaturedOverrides";
+
+const getFeaturedOverrides = (): Record<string, boolean> => {
+  if (typeof window === "undefined") {
+    return {};
+  }
+  try {
+    const raw = localStorage.getItem(FEATURED_OVERRIDES_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+  } catch {
+    return {};
+  }
+};
+
 export const currentUser: User = {
   id: '1',
   name: 'Alex Johnson',
@@ -70,7 +84,7 @@ export const categories = [
   'Other'
 ];
 
-export const mockItems: Item[] = [
+const baseMockItems: Item[] = [
   {
     id: '1',
     title: 'DeWalt Cordless Drill',
@@ -302,3 +316,13 @@ export const mockRequests: BorrowRequest[] = [
     createdAt: '2026-04-14'
   }
 ];
+
+const featuredOverrides = getFeaturedOverrides();
+
+export const mockItems: Item[] = baseMockItems.map((item) => {
+  const override = featuredOverrides[item.id];
+  if (typeof override === "boolean") {
+    return { ...item, isFeatured: override };
+  }
+  return item;
+});
