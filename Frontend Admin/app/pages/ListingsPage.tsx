@@ -321,14 +321,14 @@ export default function ListingsPage() {
           )}
 
           <Dialog open={Boolean(selectedListing)} onOpenChange={(open) => !open && setSelectedListing(null)}>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Listing Details</DialogTitle>
                 <DialogDescription>Detailed listing preview for admin review.</DialogDescription>
               </DialogHeader>
               {selectedListing && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
+                <div className="flex flex-row gap-6">
+                  <div className="space-y-4 w-5/12">
                     <div className="w-full h-56 bg-muted rounded-lg overflow-hidden">
                       <img
                         src={selectedListing.image}
@@ -343,7 +343,7 @@ export default function ListingsPage() {
                     </div>
                   </div>
 
-                  <div className="space-y-4">
+                  <div className="space-y-4 w-7/12">
                     <div className="rounded-lg border p-3">
                       <p className="text-xs text-muted-foreground">Owner</p>
                       <p className="font-semibold">{selectedListing.owner}</p>

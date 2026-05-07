@@ -238,15 +238,15 @@ export default function RequestsPage() {
           </div>
 
           <Dialog open={Boolean(selectedRequest)} onOpenChange={(open) => !open && setSelectedRequest(null)}>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Borrow Request Details</DialogTitle>
                 <DialogDescription>Full request context for admin review</DialogDescription>
               </DialogHeader>
               {selectedRequest && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div className="w-full h-48 bg-muted rounded-lg overflow-hidden">
+                <div className="flex flex-row gap-6">
+                  <div className="space-y-4 w-5/12">
+                    <div className="w-full h-56 bg-muted rounded-lg overflow-hidden">
                       <img
                         src={selectedRequest.itemImage}
                         alt={selectedRequest.itemTitle}
@@ -260,7 +260,7 @@ export default function RequestsPage() {
                     </div>
                   </div>
 
-                  <div className="space-y-4">
+                  <div className="space-y-4 w-7/12">
                     <div className="p-4 rounded-lg border">
                       <p className="text-xs text-muted-foreground">Borrower</p>
                       <p className="font-semibold">{selectedRequest.borrower}</p>
