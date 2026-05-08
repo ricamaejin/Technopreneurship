@@ -1,5 +1,6 @@
 import "../../styles/index.css";
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { Bell, LogOut, Settings } from "lucide-react";
 import { Button } from "./ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
@@ -28,6 +29,7 @@ interface AdminHeaderProps {
 }
 
 export function AdminHeader({ onLogout }: AdminHeaderProps) {
+  const navigate = useNavigate();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notifyNewRequests, setNotifyNewRequests] = useState(true);
   const [notifyFlaggedListings, setNotifyFlaggedListings] = useState(true);
@@ -38,6 +40,19 @@ export function AdminHeader({ onLogout }: AdminHeaderProps) {
     { id: "n3", title: "User verification pending", time: "1h ago" },
   ];
   const unreadCount = notifications.length;
+
+  const handleLogout = () => {
+    localStorage.removeItem("adminToken");
+    localStorage.removeItem("adminEmail");
+    localStorage.removeItem("lendly_user");
+
+    if (onLogout) {
+      onLogout();
+      return;
+    }
+
+    navigate("/");
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-gradient-to-r from-background to-background/95 backdrop-blur-sm">
@@ -172,7 +187,7 @@ export function AdminHeader({ onLogout }: AdminHeaderProps) {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="cursor-pointer text-destructive focus:text-destructive"
-                onClick={onLogout}
+                onClick={handleLogout}
               >
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
