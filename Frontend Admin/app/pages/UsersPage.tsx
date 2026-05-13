@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Search, Eye, Trash2, Ban, MoreVertical } from "lucide-react";
 import { AdminHeader } from "../components/AdminHeader";
 import { AdminSidebar } from "../components/AdminSidebar";
@@ -28,16 +28,33 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../components/ui/dialog";
-import { mockUsers } from "../data/mockAdminData";
+import { fetchAdminUsers, type AdminUser } from "../services/admin-api";
 import { toast } from "sonner";
 
 export default function UsersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [users, setUsers] = useState(mockUsers);
-  const [selectedUser, setSelectedUser] = useState<(typeof mockUsers)[number] | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<(typeof mockUsers)[number] | null>(null);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        setIsLoading(true);
+        const data = await fetchAdminUsers();
+        setUsers(data);
+      } catch (error) {
+        console.error("Failed to load users:", error);
+        toast.error("Failed to load users");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadUsers();
+  }, []);
 
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
@@ -75,6 +92,15 @@ export default function UsersPage() {
 
       <main className="pt-20 pb-8 pl-[var(--admin-sidebar-width)]">
         <div className="container mx-auto px-4 max-w-7xl">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-96">
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+                <p className="text-muted-foreground">Loading users...</p>
+              </div>
+            </div>
+          ) : (
+            <>
           {/* Header */}
           <div className="mb-8 animate-fade-in">
             <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-orange-400 to-orange-500 bg-clip-text text-transparent">
@@ -320,6 +346,8 @@ export default function UsersPage() {
               )}
             </DialogContent>
           </Dialog>
+            </>
+          )}
         </div>
       </main>
     </div>

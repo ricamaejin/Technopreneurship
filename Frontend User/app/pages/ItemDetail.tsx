@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router";
 import { Header } from "../components/Header";
 import { Button } from "../components/ui/button";
@@ -20,7 +20,7 @@ import {
   Send,
   CheckCircle
 } from "lucide-react";
-import { mockItems, currentUser } from "../data/mockData";
+import { fetchItemById, type Item } from "../services/api";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
@@ -29,12 +29,30 @@ export default function ItemDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const item = mockItems.find(i => i.id === id);
+  const [item, setItem] = useState<Item | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
   const [message, setMessage] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  useEffect(() => {
+    const loadItem = async () => {
+      if (!id) return;
+      try {
+        setIsLoading(true);
+        const data = await fetchItemById(id);
+        setItem(data);
+      } catch (error) {
+        console.error("Failed to fetch item:", error);
+        toast.error("Failed to load item");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadItem();
+  }, [id]);
 
   const handleBorrowClick = () => {
     if (!user) {

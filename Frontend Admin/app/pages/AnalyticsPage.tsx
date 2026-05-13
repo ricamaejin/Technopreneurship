@@ -1,8 +1,10 @@
+import { useEffect, useState } from "react";
 import { AdminHeader } from "../components/AdminHeader";
 import { AdminSidebar } from "../components/AdminSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
-import { categoryStats, borrowVolumeData } from "../data/mockAdminData";
+import { fetchCategoryStats, fetchBorrowVolume, type CategoryStat, type BorrowVolume } from "../services/admin-api";
+import { toast } from "sonner";
 
 const CHART_COLORS = ["#f97316", "#14b8a6", "#8b5cf6", "#3b82f6", "#ec4899", "#f59e0b", "#10b981", "#6366f1"];
 
@@ -24,7 +26,32 @@ const userGrowthData = [
   { month: "Week 6", users: 312, active: 278 },
 ];
 
+let categoryStats: CategoryStat[] = [];
+let borrowVolumeData: BorrowVolume[] = [];
+
 export default function AnalyticsPage() {
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadAnalyticsData = async () => {
+      try {
+        setIsLoading(true);
+        const [categories, volume] = await Promise.all([
+          fetchCategoryStats(),
+          fetchBorrowVolume(),
+        ]);
+        categoryStats = categories;
+        borrowVolumeData = volume;
+      } catch (error) {
+        console.error("Failed to load analytics data:", error);
+        toast.error("Failed to load analytics data");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadAnalyticsData();
+  }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <AdminHeader />
@@ -32,6 +59,15 @@ export default function AnalyticsPage() {
 
       <main className="pt-20 pb-8 pl-[var(--admin-sidebar-width)]">
         <div className="container mx-auto px-4 max-w-7xl">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-96">
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+                <p className="text-muted-foreground">Loading analytics...</p>
+              </div>
+            </div>
+          ) : (
+            <>
           {/* Header */}
           <div className="mb-8 animate-fade-in">
             <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-orange-400 to-orange-500 bg-clip-text text-transparent">
@@ -205,6 +241,8 @@ export default function AnalyticsPage() {
               </CardContent>
             </Card>
           </div>
+            </>
+          )}
 
         </div>
       </main>

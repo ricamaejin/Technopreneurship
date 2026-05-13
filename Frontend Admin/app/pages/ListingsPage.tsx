@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Search, Eye, Trash2, Star, MoreVertical } from "lucide-react";
 import { AdminHeader } from "../components/AdminHeader";
 import { AdminSidebar } from "../components/AdminSidebar";
@@ -27,7 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../components/ui/dialog";
-import { mockListings } from "../data/mockAdminData";
+import { fetchAdminListings, type AdminListing } from "../services/admin-api";
 import { toast } from "sonner";
 
 const FEATURED_OVERRIDES_KEY = "lendlyFeaturedOverrides";
@@ -54,19 +54,35 @@ const persistFeaturedOverride = (listingId: string, isFeatured: boolean) => {
 export default function ListingsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [listings, setListings] = useState(() => {
-    const overrides = loadFeaturedOverrides();
-    return mockListings.map((listing) => {
-      const override = overrides[listing.id];
-      if (typeof override === "boolean") {
-        return { ...listing, featured: override };
-      }
-      return listing;
-    });
-  });
-  const [selectedListing, setSelectedListing] = useState<(typeof mockListings)[number] | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<(typeof mockListings)[number] | null>(null);
+  const [listings, setListings] = useState<AdminListing[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedListing, setSelectedListing] = useState<AdminListing | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminListing | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadListings = async () => {
+      try {
+        setIsLoading(true);
+        const data = await fetchAdminListings();
+        const overrides = loadFeaturedOverrides();
+        const withOverrides = data.map((listing) => {
+          const override = overrides[listing.id];
+          if (typeof override === "boolean") {
+            return { ...listing, featured: override };
+          }
+          return listing;
+        });
+        setListings(withOverrides);
+      } catch (error) {
+        console.error("Failed to load listings:", error);
+        toast.error("Failed to load listings");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadListings();
+  }, []);
 
   const filteredListings = useMemo(() => {
     return listings.filter((listing) => {
@@ -115,6 +131,15 @@ export default function ListingsPage() {
 
       <main className="pt-20 pb-8 pl-[var(--admin-sidebar-width)]">
         <div className="container mx-auto px-4 max-w-7xl">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-96">
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+                <p className="text-muted-foreground">Loading listings...</p>
+              </div>
+            </div>
+          ) : (
+            <>
           {/* Header */}
           <div className="mb-8 animate-fade-in">
             <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-orange-400 to-orange-500 bg-clip-text text-transparent">
@@ -372,6 +397,8 @@ export default function ListingsPage() {
               )}
             </DialogContent>
           </Dialog>
+            </>
+          )}
         </div>
       </main>
     </div>

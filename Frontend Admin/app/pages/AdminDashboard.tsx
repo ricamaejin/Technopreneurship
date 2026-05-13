@@ -1,18 +1,57 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Users, Package, Clock, Flag, TrendingUp, Activity } from "lucide-react";
 import { AdminHeader } from "../components/AdminHeader";
 import { AdminSidebar } from "../components/AdminSidebar";
 import { StatCard } from "../components/StatCard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
-import { adminStats, categoryStats, borrowVolumeData, topLenders } from "../data/mockAdminData";
+import {
+  fetchAdminStats,
+  fetchCategoryStats,
+  fetchBorrowVolume,
+  fetchTopLenders,
+  type AdminStats,
+  type CategoryStat,
+  type BorrowVolume,
+  type TopLender,
+} from "../services/admin-api";
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { toast } from "sonner";
 
 const CHART_COLORS = ["#f97316", "#14b8a6", "#8b5cf6", "#3b82f6", "#ec4899", "#f59e0b", "#10b981", "#6366f1"];
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
+  const [adminStats, setAdminStats] = useState<AdminStats | null>(null);
+  const [categoryStats, setCategoryStats] = useState<CategoryStat[]>([]);
+  const [borrowVolumeData, setBorrowVolumeData] = useState<BorrowVolume[]>([]);
+  const [topLenders, setTopLenders] = useState<TopLender[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        const [stats, categories, volume, lenders] = await Promise.all([
+          fetchAdminStats(),
+          fetchCategoryStats(),
+          fetchBorrowVolume(),
+          fetchTopLenders(),
+        ]);
+        setAdminStats(stats);
+        setCategoryStats(categories);
+        setBorrowVolumeData(volume);
+        setTopLenders(lenders);
+      } catch (error) {
+        console.error("Failed to load admin data:", error);
+        toast.error("Failed to load dashboard data");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
@@ -22,6 +61,15 @@ export default function AdminDashboard() {
       {/* Main Content */}
       <main className="pt-20 pb-8 pl-[var(--admin-sidebar-width)]">
         <div className="container mx-auto px-4 max-w-7xl">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-96">
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+                <p className="text-muted-foreground">Loading dashboard data...</p>
+              </div>
+            </div>
+          ) : (
+            <>
           {/* Header Section */}
           <div className="mb-8 animate-fade-in">
             <div className="flex items-center justify-between mb-4">
@@ -44,23 +92,23 @@ export default function AdminDashboard() {
           <div className="grid grid-cols-4 lg:grid-cols-4 gap-4 mb-8">
             <StatCard
               title="Total Users"
-              value={adminStats.totalUsers}
-              description={`+${adminStats.newUsersThisWeek} this week`}
+              value={adminStats?.totalUsers || 0}
+              description={`+${adminStats?.newUsersThisWeek || 0} this week`}
               icon={Users}
               variant="default"
               trend={5}
             />
             <StatCard
               title="Active Listings"
-              value={adminStats.activeListings}
-              description={`${adminStats.featuredListings} featured`}
+              value={adminStats?.activeListings || 0}
+              description={`${adminStats?.featuredListings || 0} featured`}
               icon={Package}
               variant="success"
               trend={8}
             />
             <StatCard
               title="Pending Requests"
-              value={adminStats.pendingRequests}
+              value={adminStats?.pendingRequests || 0}
               description="Awaiting approval"
               icon={Clock}
               variant="warning"
@@ -68,7 +116,7 @@ export default function AdminDashboard() {
             />
             <StatCard
               title="Active Disputes"
-              value={adminStats.disputes}
+              value={adminStats?.disputes || 0}
               description="Requires attention"
               icon={Flag}
               variant="danger"
@@ -201,10 +249,11 @@ export default function AdminDashboard() {
                   <CardDescription>Key performance indicators</CardDescription>
                 </CardHeader>
                 <CardContent>
+                  {adminStats && (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {[
-                      { label: "Total Borrow Volume", value: `₱${(adminStats.totalBorrowVolume * 1000).toLocaleString()}`, icon: "📊" },
-                      { label: "This Week Returns", value: adminStats.returnedThisWeek, icon: "✅" },
+                        { label: "Total Borrow Volume", value: `₱${(adminStats.totalBorrowVolume * 1000).toLocaleString()}`, icon: "📊" },
+                        { label: "This Week Returns", value: adminStats.returnedThisWeek, icon: "✅" },
                       { label: "Platform Fee Revenue", value: "₱45,600", icon: "💰" },
                       { label: "User Retention Rate", value: "94.3%", icon: "📈" },
                     ].map((metric, idx) => (
@@ -215,11 +264,14 @@ export default function AdminDashboard() {
                       </div>
                     ))}
                   </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
 
           </Tabs>
+            </>
+          )}
         </div>
       </main>
     </div>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { Header } from "../components/Header";
 import { ItemCard } from "../components/ItemCard";
@@ -7,29 +7,48 @@ import { Button } from "../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
 import { Search, Filter, Sparkles, TrendingUp, Users, Shield } from "lucide-react";
-import { mockItems, categories } from "../data/mockData";
+import { categories } from "../data/categories";
+import { fetchItems, type Item } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
 
 export default function Home() {
   const navigate = useNavigate();
+  const [items, setItems] = useState<Item[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const { user } = useAuth();
+
+  useEffect(() => {
+    const loadItems = async () => {
+      try {
+        setIsLoading(true);
+        const data = await fetchItems();
+        setItems(data);
+      } catch (error) {
+        console.error("Failed to fetch items:", error);
+        toast.error("Failed to load items");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadItems();
+  }, []);
 
   const handleGuestListItemClick = () => {
     toast.info("Please log in to list your item.");
     navigate("/login");
   };
 
-  const filteredItems = mockItems.filter(item => {
+  const filteredItems = items.filter(item => {
     const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          item.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === "all" || item.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  const featuredItems = mockItems.filter(item => item.isFeatured);
+  const featuredItems = items.filter(item => item.isFeatured);
 
   return (
     <div className="min-h-screen bg-background">

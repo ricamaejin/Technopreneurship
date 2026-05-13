@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AlertCircle, Mail, Phone, Clock } from "lucide-react";
 import { AdminHeader } from "../components/AdminHeader";
 import { AdminSidebar } from "../components/AdminSidebar";
@@ -6,12 +6,29 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../co
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
-import { mockOverdueItems, mockBorrowRequests } from "../data/mockAdminData";
+import { fetchOverdueItems, type OverdueItem } from "../services/admin-api";
 import { toast } from "sonner";
 
 export default function OverduePage() {
-  const [overdueItems, setOverdueItems] = useState(mockOverdueItems);
+  const [overdueItems, setOverdueItems] = useState<OverdueItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [sortBy, setSortBy] = useState("daysOverdue");
+
+  useEffect(() => {
+    const loadOverdueItems = async () => {
+      try {
+        setIsLoading(true);
+        const data = await fetchOverdueItems();
+        setOverdueItems(data);
+      } catch (error) {
+        console.error("Failed to load overdue items:", error);
+        toast.error("Failed to load overdue items");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadOverdueItems();
+  }, []);
 
   const sortedItems = [...overdueItems].sort((a, b) => {
     if (sortBy === "daysOverdue") {
@@ -72,6 +89,15 @@ export default function OverduePage() {
 
       <main className="pt-20 pb-8 pl-[var(--admin-sidebar-width)]">
         <div className="container mx-auto px-4 max-w-7xl">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-96">
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+                <p className="text-muted-foreground">Loading overdue items...</p>
+              </div>
+            </div>
+          ) : (
+            <>
           {/* Header */}
           <div className="mb-8 animate-fade-in">
             <h1 className="text-4xl font-bold bg-gradient-to-r from-red-500 via-orange-400 to-red-500 bg-clip-text text-transparent">
@@ -236,6 +262,8 @@ export default function OverduePage() {
                 <p className="text-muted-foreground">No overdue items at the moment</p>
               </CardContent>
             </Card>
+          )}
+            </>
           )}
         </div>
       </main>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Header } from '../components/Header';
 import { Button } from '../components/ui/button';
@@ -8,9 +8,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Badge } from '../components/ui/badge';
-import { mockItems } from '../data/mockData';
+import { fetchItems, type Item } from '../services/api';
 import { Calendar, MapPin, Star, Package, Edit } from 'lucide-react';
 import { useNavigate } from 'react-router';
+import { toast } from 'sonner';
 
 export default function Account() {
   const { user } = useAuth();
@@ -18,14 +19,34 @@ export default function Account() {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
+  const [userListings, setUserListings] = useState<Item[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadUserListings = async () => {
+      try {
+        setIsLoading(true);
+        const allItems = await fetchItems();
+        // Filter items by owner ID
+        const userItems = allItems.filter(item => item.ownerId === user?.id);
+        setUserListings(userItems);
+      } catch (error) {
+        console.error("Failed to fetch user listings:", error);
+        toast.error("Failed to load listings");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    if (user?.id) {
+      loadUserListings();
+    }
+  }, [user?.id]);
 
   if (!user) {
     navigate('/login');
     return null;
   }
-
-  // Get user's listings (items they own)
-  const userListings = mockItems.filter(item => item.ownerId === user.id);
 
   const handleSave = () => {
     // In production, this would update the user profile via API

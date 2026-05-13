@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Switch } from "../components/ui/switch";
 import { ArrowLeft, Upload, ImagePlus, Sparkles } from "lucide-react";
 import { Link } from "react-router";
-import { categories } from "../data/mockData";
+import { categories } from "../data/categories";
 import { toast } from "sonner";
 
 export default function AddListing() {

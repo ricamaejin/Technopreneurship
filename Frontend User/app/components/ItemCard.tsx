@@ -3,7 +3,7 @@ import { Card, CardContent, CardFooter } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { MapPin, Star, Sparkles } from "lucide-react";
-import { Item } from "../data/mockData";
+import { type Item } from "../services/api";
 
 interface ItemCardProps {
   item: Item;

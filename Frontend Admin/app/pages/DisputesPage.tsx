@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Flag, MessageSquare, CheckCircle, AlertTriangle, MoreVertical } from "lucide-react";
 import { AdminHeader } from "../components/AdminHeader";
 import { AdminSidebar } from "../components/AdminSidebar";
@@ -22,12 +22,29 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu";
-import { mockDisputes } from "../data/mockAdminData";
+import { fetchDisputes, type Dispute } from "../services/admin-api";
 import { toast } from "sonner";
 
 export default function DisputesPage() {
-  const [disputes, setDisputes] = useState(mockDisputes);
+  const [disputes, setDisputes] = useState<Dispute[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
+
+  useEffect(() => {
+    const loadDisputes = async () => {
+      try {
+        setIsLoading(true);
+        const data = await fetchDisputes();
+        setDisputes(data);
+      } catch (error) {
+        console.error("Failed to load disputes:", error);
+        toast.error("Failed to load disputes");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadDisputes();
+  }, []);
   const [selectedDispute, setSelectedDispute] = useState<string | null>(null);
   const [adminNotes, setAdminNotes] = useState("");
 
@@ -88,6 +105,15 @@ export default function DisputesPage() {
 
       <main className="pt-20 pb-8 pl-[var(--admin-sidebar-width)]">
         <div className="container mx-auto px-4 max-w-7xl">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-96">
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+                <p className="text-muted-foreground">Loading disputes...</p>
+              </div>
+            </div>
+          ) : (
+            <>
           {/* Header */}
           <div className="mb-8 animate-fade-in">
             <h1 className="text-4xl font-bold bg-gradient-to-r from-red-500 via-orange-400 to-red-500 bg-clip-text text-transparent">
@@ -301,6 +327,8 @@ export default function DisputesPage() {
                 <p className="text-muted-foreground">No {statusFilter !== "all" ? statusFilter.toLowerCase() : ""} disputes at the moment</p>
               </CardContent>
             </Card>
+          )}
+            </>
           )}
         </div>
       </main>

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Search, CheckCircle, XCircle, Eye, MoreVertical } from "lucide-react";
 import { AdminHeader } from "../components/AdminHeader";
 import { AdminSidebar } from "../components/AdminSidebar";
@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../components/ui/dialog";
-import { mockBorrowRequests } from "../data/mockAdminData";
+import { fetchAdminBorrowRequests, type AdminBorrowRequest } from "../services/admin-api";
 import { toast } from "sonner";
 
 const statuses = ["Pending", "Approved", "Active", "Overdue", "Returned"];
@@ -22,8 +22,25 @@ const statuses = ["Pending", "Approved", "Active", "Overdue", "Returned"];
 export default function RequestsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [requests, setRequests] = useState(mockBorrowRequests);
-  const [selectedRequest, setSelectedRequest] = useState<(typeof mockBorrowRequests)[number] | null>(null);
+  const [requests, setRequests] = useState<AdminBorrowRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedRequest, setSelectedRequest] = useState<AdminBorrowRequest | null>(null);
+
+  useEffect(() => {
+    const loadRequests = async () => {
+      try {
+        setIsLoading(true);
+        const data = await fetchAdminBorrowRequests();
+        setRequests(data);
+      } catch (error) {
+        console.error("Failed to load requests:", error);
+        toast.error("Failed to load requests");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadRequests();
+  }, []);
 
   const filteredRequests = useMemo(() => {
     return requests.filter((request) => {
@@ -75,6 +92,15 @@ export default function RequestsPage() {
 
       <main className="pt-20 pb-8 pl-[var(--admin-sidebar-width)]">
         <div className="container mx-auto px-4 max-w-7xl">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-96">
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+                <p className="text-muted-foreground">Loading requests...</p>
+              </div>
+            </div>
+          ) : (
+            <>
           {/* Header */}
           <div className="mb-8 animate-fade-in">
             <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-orange-400 to-orange-500 bg-clip-text text-transparent">
@@ -305,6 +331,8 @@ export default function RequestsPage() {
                 </Button>
               </CardContent>
             </Card>
+          )}
+            </>
           )}
         </div>
       </main>

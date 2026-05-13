@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User } from '../data/mockData';
+import { type User, fetchUsers, createUser } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
@@ -25,50 +25,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
-    // Mock login - in production, this would call an API
     setIsLoading(true);
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // Mock user based on email
-    const mockUser: User = {
-      id: '1',
-      name: email === 'admin@lendly.com' ? 'Admin User' : 'Alex Johnson',
-      email,
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop',
-      isAdmin: email === 'admin@lendly.com',
-      joinDate: '2024-01-15',
-      rating: 4.8,
-      reviewCount: 24
-    };
-    
-    setUser(mockUser);
-    localStorage.setItem('lendly_user', JSON.stringify(mockUser));
-    setIsLoading(false);
+    try {
+      const users = await fetchUsers();
+      const found = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+      if (!found) throw new Error('No user with that email');
+      // Note: password is not stored in the current backend; this performs email-based login only
+      setUser(found);
+      localStorage.setItem('lendly_user', JSON.stringify(found));
+    } catch (err) {
+      setUser(null);
+      localStorage.removeItem('lendly_user');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const signup = async (name: string, email: string, password: string) => {
-    // Mock signup - in production, this would call an API
     setIsLoading(true);
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    const newUser: User = {
-      id: Math.random().toString(36).substr(2, 9),
-      name,
-      email,
-      avatar: `https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop`,
-      isAdmin: false,
-      joinDate: new Date().toISOString().split('T')[0],
-      rating: 0,
-      reviewCount: 0
-    };
-    
-    setUser(newUser);
-    localStorage.setItem('lendly_user', JSON.stringify(newUser));
-    setIsLoading(false);
+    try {
+      const payload: Partial<User> = {
+        name,
+        email,
+        avatar: `https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop`,
+        isAdmin: false,
+        joinDate: new Date().toISOString().split('T')[0],
+        rating: 0,
+        reviewCount: 0,
+      };
+      const created = await createUser(payload);
+      setUser(created);
+      localStorage.setItem('lendly_user', JSON.stringify(created));
+    } catch (err) {
+      setUser(null);
+      localStorage.removeItem('lendly_user');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const logout = () => {

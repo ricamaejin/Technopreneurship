@@ -30,7 +30,8 @@ import {
   Eye,
   AlertCircle
 } from "lucide-react";
-import { mockItems, mockRequests, BorrowRequest, Item, categories } from "../data/mockData";
+import { categories } from "../data/categories";
+import { fetchItems, fetchBorrowRequests, fetchBorrowRequestsByBorrowerId, fetchBorrowRequestsByOwnerId, type BorrowRequest, type Item } from "../services/api";
 import { Link, useNavigate } from "react-router";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -39,28 +40,9 @@ import { useAuth } from "../context/AuthContext";
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [items, setItems] = useState<Item[]>(() => {
-    const storedItems = localStorage.getItem('lendly_items');
-    if (storedItems) {
-      try {
-        return JSON.parse(storedItems);
-      } catch {
-        return mockItems;
-      }
-    }
-    return mockItems;
-  });
-  const [requests, setRequests] = useState<BorrowRequest[]>(() => {
-    const storedRequests = localStorage.getItem('lendly_requests');
-    if (storedRequests) {
-      try {
-        return JSON.parse(storedRequests);
-      } catch {
-        return mockRequests;
-      }
-    }
-    return mockRequests;
-  });
+  const [items, setItems] = useState<Item[]>([]);
+  const [requests, setRequests] = useState<BorrowRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
@@ -76,12 +58,24 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    localStorage.setItem('lendly_items', JSON.stringify(items));
-  }, [items]);
-
-  useEffect(() => {
-    localStorage.setItem('lendly_requests', JSON.stringify(requests));
-  }, [requests]);
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        const [itemsData, requestsData] = await Promise.all([
+          fetchItems(),
+          fetchBorrowRequests(),
+        ]);
+        setItems(itemsData);
+        setRequests(requestsData);
+      } catch (error) {
+        console.error("Failed to fetch data:", error);
+        toast.error("Failed to load dashboard data");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, []);
 
   if (!user) {
     navigate('/login');
