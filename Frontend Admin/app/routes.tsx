@@ -1,44 +1,81 @@
 import { createBrowserRouter } from "react-router";
 import { Navigate } from "react-router";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminLoginPage from "./pages/AdminLoginPage";
 import UsersPage from "./pages/UsersPage";
 import ListingsPage from "./pages/ListingsPage";
 import RequestsPage from "./pages/RequestsPage";
 import OverduePage from "./pages/OverduePage";
 import DisputesPage from "./pages/DisputesPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
+import RequireAdmin from "./components/RequireAdmin";
 
 export const adminRouter = createBrowserRouter([
   {
     path: "/",
-    Component: () => <Navigate to="/admin" replace />,
+    Component: () => {
+      const hasToken = Boolean(localStorage.getItem("adminToken"));
+      return <Navigate to={hasToken ? "/admin" : "/admin/login"} replace />;
+    },
+  },
+  {
+    path: "/admin/login",
+    Component: AdminLoginPage,
   },
   {
     path: "/admin",
-    Component: AdminDashboard,
+    Component: () => (
+      <RequireAdmin>
+        <AdminDashboard />
+      </RequireAdmin>
+    ),
   },
   {
     path: "/admin/users",
-    Component: UsersPage,
+    Component: () => (
+      <RequireAdmin>
+        <UsersPage />
+      </RequireAdmin>
+    ),
   },
   {
     path: "/admin/listings",
-    Component: ListingsPage,
+    Component: () => (
+      <RequireAdmin>
+        <ListingsPage />
+      </RequireAdmin>
+    ),
   },
   {
     path: "/admin/requests",
-    Component: RequestsPage,
+    Component: () => (
+      <RequireAdmin>
+        <RequestsPage />
+      </RequireAdmin>
+    ),
   },
   {
     path: "/admin/overdue",
-    Component: OverduePage,
+    Component: () => (
+      <RequireAdmin>
+        <OverduePage />
+      </RequireAdmin>
+    ),
   },
   {
     path: "/admin/disputes",
-    Component: DisputesPage,
+    Component: () => (
+      <RequireAdmin>
+        <DisputesPage />
+      </RequireAdmin>
+    ),
   },
   {
     path: "/admin/analytics",
-    Component: AnalyticsPage,
+    Component: () => (
+      <RequireAdmin>
+        <AnalyticsPage />
+      </RequireAdmin>
+    ),
   },
 ]);

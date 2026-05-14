@@ -6,6 +6,7 @@ import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { useAuth } from '../context/AuthContext';
 import { Eye, EyeOff } from 'lucide-react';
+import { loginUser, setUserToken } from '../services/api';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -28,16 +29,24 @@ export default function Login() {
 
     if (loginMode === 'admin') {
       setAdminLoading(true);
-      setTimeout(() => {
-        if (email === 'admin@platform.com' && password === 'admin123') {
-          localStorage.setItem('adminToken', 'mock-jwt-token');
-          localStorage.setItem('adminEmail', email);
-          navigate('/admin');
-        } else {
-          setError('Invalid admin credentials. Try admin@platform.com / admin123');
+      try {
+        const result = await loginUser(email, password);
+
+        if (!result.user.isAdmin) {
+          setError('This account is not an admin account');
+          return;
         }
+
+        setUserToken(result.token);
+        localStorage.setItem('adminToken', result.token);
+        localStorage.setItem('adminEmail', result.user.email);
+        navigate('/admin');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Invalid admin credentials';
+        setError(message);
+      } finally {
         setAdminLoading(false);
-      }, 800);
+      }
       return;
     }
 
@@ -45,7 +54,8 @@ export default function Login() {
       await login(email, password);
       navigate('/');
     } catch (err) {
-      setError('Invalid email or password');
+      const message = err instanceof Error ? err.message : 'Invalid email or password';
+      setError(message);
     }
   };
 

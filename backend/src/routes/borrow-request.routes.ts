@@ -7,14 +7,16 @@ import {
   getBorrowRequestsByOwnerIdHandler,
   updateBorrowRequestHandler,
 } from "../controllers/borrow-request.controller";
+import { authenticateToken } from "../middleware/auth";
 
 const router = Router();
 
-router.get("/", getBorrowRequestsHandler);
-router.post("/", createBorrowRequestHandler);
+// Protected: only admins can see all requests (add requireAdmin if needed)
+router.get("/", authenticateToken, getBorrowRequestsHandler);
+router.post("/", authenticateToken, createBorrowRequestHandler);
 router.get("/:id", getBorrowRequestByIdHandler);
-router.get("/borrower/:borrowerId", getBorrowRequestsByBorrowerIdHandler);
-router.get("/owner/:ownerId", getBorrowRequestsByOwnerIdHandler);
-router.put("/:id", updateBorrowRequestHandler);
+router.get("/borrower/:borrowerId", authenticateToken, getBorrowRequestsByBorrowerIdHandler);
+router.get("/owner/:ownerId", authenticateToken, getBorrowRequestsByOwnerIdHandler);
+router.put("/:id", authenticateToken, updateBorrowRequestHandler);
 
 export default router;

@@ -18,6 +18,9 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [locationQuery, setLocationQuery] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
   const { user } = useAuth();
 
   useEffect(() => {
@@ -43,9 +46,15 @@ export default function Home() {
 
   const filteredItems = items.filter(item => {
     const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         item.description.toLowerCase().includes(searchQuery.toLowerCase());
+                         item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         item.location.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === "all" || item.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    const matchesLocation = !locationQuery || item.location.toLowerCase().includes(locationQuery.toLowerCase());
+    const min = minPrice ? Number(minPrice) : undefined;
+    const max = maxPrice ? Number(maxPrice) : undefined;
+    const matchesMinPrice = min === undefined || item.rentalFeePerDay >= min;
+    const matchesMaxPrice = max === undefined || item.rentalFeePerDay <= max;
+    return matchesSearch && matchesCategory && matchesLocation && matchesMinPrice && matchesMaxPrice;
   });
 
   const featuredItems = items.filter(item => item.isFeatured);
@@ -89,6 +98,31 @@ export default function Home() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl mx-auto">
+              <Input
+                placeholder="Filter by location"
+                value={locationQuery}
+                onChange={(e) => setLocationQuery(e.target.value)}
+                className="h-12 bg-muted/40 border-border/90 shadow-sm"
+              />
+              <Input
+                type="number"
+                min="0"
+                placeholder="Min price"
+                value={minPrice}
+                onChange={(e) => setMinPrice(e.target.value)}
+                className="h-12 bg-muted/40 border-border/90 shadow-sm"
+              />
+              <Input
+                type="number"
+                min="0"
+                placeholder="Max price"
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(e.target.value)}
+                className="h-12 bg-muted/40 border-border/90 shadow-sm"
+              />
             </div>
           </div>
         </div>
@@ -166,6 +200,9 @@ export default function Home() {
                 onClick={() => {
                   setSearchQuery("");
                   setSelectedCategory("all");
+                  setLocationQuery("");
+                  setMinPrice("");
+                  setMaxPrice("");
                 }}
               >
                 Clear Filters

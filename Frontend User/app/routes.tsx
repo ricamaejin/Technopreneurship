@@ -3,6 +3,7 @@ import Home from "./pages/Home";
 import ItemDetail from "./pages/ItemDetail";
 import AddListing from "./pages/AddListing";
 import Dashboard from "./pages/Dashboard";
+import UserProfile from "./pages/UserProfile";
 import AdminDashboard from "../../Frontend Admin/app/pages/AdminDashboard";
 import UsersPage from "../../Frontend Admin/app/pages/UsersPage";
 import ListingsPage from "../../Frontend Admin/app/pages/ListingsPage";
@@ -22,6 +23,8 @@ import Support from "./pages/Support";
 import ContactUs from "./pages/ContactUs";
 import TermsOfService from "./pages/TermsOfService";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import RequireAuth from "./components/RequireAuth";
+import RequireAdmin from "./components/RequireAdmin";
 
 export const router = createBrowserRouter([
   {
@@ -38,7 +41,11 @@ export const router = createBrowserRouter([
   },
   {
     path: "/account",
-    Component: Account,
+    Component: () => (
+      <RequireAuth>
+        <Account />
+      </RequireAuth>
+    ),
   },
   {
     path: "/faq",
@@ -78,39 +85,79 @@ export const router = createBrowserRouter([
   },
   {
     path: "/add-listing",
-    Component: AddListing,
+    Component: () => (
+      <RequireAuth>
+        <AddListing />
+      </RequireAuth>
+    ),
   },
   {
     path: "/dashboard",
-    Component: Dashboard,
+    Component: () => (
+      <RequireAuth>
+        <Dashboard />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: "/user/:userId",
+    Component: UserProfile,
   },
   {
     path: "/admin",
-    Component: AdminDashboard,
+    Component: () => (
+      <RequireAdmin>
+        <AdminDashboard />
+      </RequireAdmin>
+    ),
   },
   {
     path: "/admin/users",
-    Component: UsersPage,
+    Component: () => (
+      <RequireAdmin>
+        <UsersPage />
+      </RequireAdmin>
+    ),
   },
   {
     path: "/admin/listings",
-    Component: ListingsPage,
+    Component: () => (
+      <RequireAdmin>
+        <ListingsPage />
+      </RequireAdmin>
+    ),
   },
   {
     path: "/admin/requests",
-    Component: RequestsPage,
+    Component: () => (
+      <RequireAdmin>
+        <RequestsPage />
+      </RequireAdmin>
+    ),
   },
   {
     path: "/admin/overdue",
-    Component: OverduePage,
+    Component: () => (
+      <RequireAdmin>
+        <OverduePage />
+      </RequireAdmin>
+    ),
   },
   {
     path: "/admin/disputes",
-    Component: DisputesPage,
+    Component: () => (
+      <RequireAdmin>
+        <DisputesPage />
+      </RequireAdmin>
+    ),
   },
   {
     path: "/admin/analytics",
-    Component: AnalyticsPage,
+    Component: () => (
+      <RequireAdmin>
+        <AnalyticsPage />
+      </RequireAdmin>
+    ),
   },
   {
     path: "*",

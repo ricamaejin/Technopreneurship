@@ -16,9 +16,10 @@ export function ItemCard({ item }: ItemCardProps) {
     'Good': 'bg-yellow-100 text-yellow-800 border-yellow-200',
     'Fair': 'bg-orange-100 text-orange-800 border-orange-200',
   };
+  const itemId = item.id || item._id;
 
   return (
-    <Link to={`/item/${item.id}`} className="block group">
+    <Link to={itemId ? `/item/${itemId}` : "#"} className="block group">
       <Card className="h-full overflow-hidden transition-all hover:shadow-lg hover:border-primary/50">
         <div className="relative aspect-[4/3] overflow-hidden bg-muted">
           <img 

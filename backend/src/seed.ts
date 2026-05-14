@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import dotenv from "dotenv";
+import bcrypt from "bcryptjs";
 import User from "./models/User";
 import Item from "./models/Item";
 import BorrowRequest from "./models/BorrowRequest";
@@ -16,8 +17,9 @@ if (!MONGO_URI) {
 const mockUsers = [
   {
     id: "1",
-    name: "Alex Johnson",
-    email: "alex@example.com",
+    name: "Admin User",
+    email: "admin@platform.com",
+    password: "admin123",
     avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop",
     isAdmin: true,
     joinDate: "2024-01-15",
@@ -26,9 +28,10 @@ const mockUsers = [
   },
   {
     id: "2",
-    name: "Sarah Martinez",
-    email: "sarah@example.com",
-    avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop",
+    name: "Alex Johnson",
+    email: "alex@example.com",
+    password: "password123",
+    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop",
     isAdmin: false,
     joinDate: "2024-01-20",
     rating: 4.9,
@@ -36,8 +39,20 @@ const mockUsers = [
   },
   {
     id: "3",
+    name: "Sarah Martinez",
+    email: "sarah@example.com",
+    password: "password123",
+    avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop",
+    isAdmin: false,
+    joinDate: "2024-01-20",
+    rating: 4.9,
+    reviewCount: 18,
+  },
+  {
+    id: "4",
     name: "Miguel Santos",
     email: "miguel@example.com",
+    password: "password123",
     avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop",
     isAdmin: false,
     joinDate: "2024-02-10",
@@ -45,9 +60,10 @@ const mockUsers = [
     reviewCount: 15,
   },
   {
-    id: "4",
+    id: "5",
     name: "Lisa Chen",
     email: "lisa@example.com",
+    password: "password123",
     avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop",
     isAdmin: false,
     joinDate: "2024-02-15",
@@ -55,9 +71,10 @@ const mockUsers = [
     reviewCount: 12,
   },
   {
-    id: "5",
+    id: "6",
     name: "Carlos Rivera",
     email: "carlos@example.com",
+    password: "password123",
     avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop",
     isAdmin: false,
     joinDate: "2024-03-05",
@@ -65,9 +82,10 @@ const mockUsers = [
     reviewCount: 10,
   },
   {
-    id: "6",
+    id: "7",
     name: "Jenny Park",
     email: "jenny@example.com",
+    password: "password123",
     avatar: "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=100&h=100&fit=crop",
     isAdmin: false,
     joinDate: "2024-03-20",
@@ -75,9 +93,10 @@ const mockUsers = [
     reviewCount: 14,
   },
   {
-    id: "7",
+    id: "8",
     name: "David Lee",
     email: "david@example.com",
+    password: "password123",
     avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&h=100&fit=crop",
     isAdmin: false,
     joinDate: "2024-04-01",
@@ -85,9 +104,10 @@ const mockUsers = [
     reviewCount: 11,
   },
   {
-    id: "8",
+    id: "9",
     name: "Tom Wilson",
     email: "tom@example.com",
+    password: "password123",
     avatar: "https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=100&h=100&fit=crop",
     isAdmin: false,
     joinDate: "2024-04-15",
@@ -106,7 +126,7 @@ const mockItems = [
     rentalFeePerDay: 120,
     deposit: 500,
     images: ["https://images.unsplash.com/photo-1504148455328-c376907d081c?w=800&h=600&fit=crop"],
-    ownerId: "2",
+    ownerId: "3",
     ownerName: "Sarah Martinez",
     ownerAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop",
     ownerRating: 4.9,
@@ -191,7 +211,7 @@ const mockItems = [
     rentalFeePerDay: 160,
     deposit: 1500,
     images: ["https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=800&h=600&fit=crop"],
-    ownerId: "2",
+    ownerId: "3",
     ownerName: "Sarah Martinez",
     ownerAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop",
     ownerRating: 4.9,
@@ -242,7 +262,7 @@ const mockItems = [
     rentalFeePerDay: 50,
     deposit: 400,
     images: ["https://images.unsplash.com/photo-1597006460675-1f3b6b8f8f46?w=800&h=600&fit=crop"],
-    ownerId: "1",
+    ownerId: "2",
     ownerName: "Alex Johnson",
     ownerAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop",
     ownerRating: 4.8,
@@ -257,7 +277,7 @@ const mockBorrowRequests = [
     itemId: "2",
     itemTitle: "Folding Ladder - 6ft",
     itemImage: "https://images.unsplash.com/photo-1581094271901-8022df4466f9?w=400&h=300&fit=crop",
-    borrowerId: "1",
+    borrowerId: "2",
     borrowerName: "Alex Johnson",
     borrowerAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop",
     ownerId: "3",
@@ -271,7 +291,7 @@ const mockBorrowRequests = [
     itemId: "3",
     itemTitle: "Party Tent - 10x10ft",
     itemImage: "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=400&h=300&fit=crop",
-    borrowerId: "1",
+    borrowerId: "2",
     borrowerName: "Alex Johnson",
     borrowerAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop",
     ownerId: "4",
@@ -288,7 +308,7 @@ const mockBorrowRequests = [
     borrowerId: "8",
     borrowerName: "Tom Wilson",
     borrowerAvatar: "https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=100&h=100&fit=crop",
-    ownerId: "2",
+    ownerId: "3",
     ownerName: "Sarah Martinez",
     startDate: "2026-03-18",
     endDate: "2026-03-20",
@@ -303,7 +323,7 @@ const mockBorrowRequests = [
     borrowerId: "8",
     borrowerName: "Tom Wilson",
     borrowerAvatar: "https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=100&h=100&fit=crop",
-    ownerId: "1",
+    ownerId: "2",
     ownerName: "Alex Johnson",
     startDate: "2026-04-18",
     endDate: "2026-04-20",
@@ -323,8 +343,16 @@ const seedDatabase = async () => {
     await BorrowRequest.deleteMany({});
     console.log("Cleared existing collections");
 
+    // Hash passwords for users before inserting
+    const hashedUsers = await Promise.all(
+      mockUsers.map(async (user) => ({
+        ...user,
+        password: await bcrypt.hash(user.password, 10),
+      }))
+    );
+
     // Insert mock data
-    const insertedUsers = await User.insertMany(mockUsers);
+    const insertedUsers = await User.insertMany(hashedUsers);
     console.log(`Inserted ${insertedUsers.length} users`);
 
     const insertedItems = await Item.insertMany(mockItems);

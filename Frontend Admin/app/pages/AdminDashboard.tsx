@@ -5,44 +5,30 @@ import { AdminSidebar } from "../components/AdminSidebar";
 import { StatCard } from "../components/StatCard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
-import {
-  fetchAdminStats,
-  fetchCategoryStats,
-  fetchBorrowVolume,
-  fetchTopLenders,
-  type AdminStats,
-  type CategoryStat,
-  type BorrowVolume,
-  type TopLender,
-} from "../services/admin-api";
+import { fetchDashboardData, type DashboardData } from "../services/admin-api";
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { toast } from "sonner";
 
 const CHART_COLORS = ["#f97316", "#14b8a6", "#8b5cf6", "#3b82f6", "#ec4899", "#f59e0b", "#10b981", "#6366f1"];
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
-  const [adminStats, setAdminStats] = useState<AdminStats | null>(null);
-  const [categoryStats, setCategoryStats] = useState<CategoryStat[]>([]);
-  const [borrowVolumeData, setBorrowVolumeData] = useState<BorrowVolume[]>([]);
-  const [topLenders, setTopLenders] = useState<TopLender[]>([]);
+  const [adminStats, setAdminStats] = useState<DashboardData["stats"] | null>(null);
+  const [categoryStats, setCategoryStats] = useState<DashboardData["categoryStats"]>([]);
+  const [borrowVolumeData, setBorrowVolumeData] = useState<DashboardData["borrowVolume"]>([]);
+  const [topLenders, setTopLenders] = useState<DashboardData["topLenders"]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        setIsLoading(true);
-        const [stats, categories, volume, lenders] = await Promise.all([
-          fetchAdminStats(),
-          fetchCategoryStats(),
-          fetchBorrowVolume(),
-          fetchTopLenders(),
-        ]);
-        setAdminStats(stats);
-        setCategoryStats(categories);
-        setBorrowVolumeData(volume);
-        setTopLenders(lenders);
+const loadData = async () => {
+       try {
+         setIsLoading(true);
+         const data = await fetchDashboardData();
+         setAdminStats(data.stats);
+         setCategoryStats(data.categoryStats);
+         setBorrowVolumeData(data.borrowVolume);
+         setTopLenders(data.topLenders);
       } catch (error) {
         console.error("Failed to load admin data:", error);
         toast.error("Failed to load dashboard data");

@@ -1,115 +1,118 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useAuth } from './AuthContext';
+import {
+  fetchNotifications as fetchNotifsAPI,
+  markNotificationAsRead as markReadAPI,
+  markAllNotificationsAsRead as markAllReadAPI,
+  deleteNotification as deleteNotifAPI,
+  type Notification as ApiNotification,
+} from '../services/api';
 
 export interface Notification {
+  _id?: string;
   id: string;
+  userId: string;
+  type: 'borrow_request' | 'request_approved' | 'request_rejected' | 'item_returned' | 'new_review' | 'system';
   title: string;
   message: string;
+  referenceId?: string;
+  referenceType?: 'borrowRequest' | 'item' | 'review';
   read: boolean;
   createdAt: string;
+  updatedAt: string;
 }
 
 interface NotificationContextType {
   notifications: Notification[];
   unreadCount: number;
-  addNotification: (notification: Omit<Notification, 'id' | 'createdAt'>) => void;
-  markAsRead: (id: string) => void;
-  markAllAsRead: () => void;
-  clearNotifications: () => void;
+  fetchNotifications: () => Promise<void>;
+  addNotification: (notification: Omit<Notification, 'id' | 'createdAt' | 'updatedAt' | 'userId' | 'type'> & { userId?: string; type?: Notification['type'] }) => void;
+  markAsRead: (id: string) => Promise<void>;
+  markAllAsRead: () => Promise<void>;
+  deleteNotification: (id: string) => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'lendly_notifications';
-
-// Initialize with some demo notifications
-const DEFAULT_NOTIFICATIONS: Notification[] = [
-  {
-    id: '1',
-    title: 'Booking Request',
-    message: 'John requested to borrow your DeWalt Cordless Drill',
-    read: false,
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
-  },
-  {
-    id: '2',
-    title: 'Item Returned',
-    message: 'Sarah has returned the Folding Ladder you lent her',
-    read: false,
-    createdAt: new Date(Date.now() - 7200000).toISOString(),
-  },
-  {
-    id: '3',
-    title: 'Rental Approved',
-    message: 'Your request to borrow the Party Tent has been approved',
-    read: true,
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-  },
-];
-
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  // Load notifications from localStorage on mount
-  useEffect(() => {
-    const storedNotifications = localStorage.getItem(STORAGE_KEY);
-    let notificationsToUse = DEFAULT_NOTIFICATIONS;
-    
-    if (storedNotifications) {
-      try {
-        const parsed = JSON.parse(storedNotifications);
-        // Use stored if valid and non-empty, otherwise use defaults
-        notificationsToUse = Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_NOTIFICATIONS;
-      } catch {
-        // If parsing fails, use defaults
-        notificationsToUse = DEFAULT_NOTIFICATIONS;
-      }
+  const normalize = (n: ApiNotification): Notification => ({
+    ...n,
+    id: n._id?.toString() || n.id || '',
+  });
+
+  const fetchNotifications = useCallback(async () => {
+    if (!user) return;
+    try {
+      const data = await fetchNotifsAPI();
+      const normalized = data.map(normalize);
+      setNotifications(normalized);
+    } catch (error) {
+      console.error("Failed to fetch notifications:", error);
     }
-    
-    setNotifications(notificationsToUse);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(notificationsToUse));
-  }, []);
+  }, [user]);
 
-  // Save notifications to localStorage whenever they change
   useEffect(() => {
-    if (notifications.length > 0 || localStorage.getItem(STORAGE_KEY)) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
+    if (user) {
+      fetchNotifications();
+    } else {
+      setNotifications([]);
     }
-  }, [notifications]);
+  }, [user, fetchNotifications]);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
-
-  const addNotification = (notification: Omit<Notification, 'id' | 'createdAt'>) => {
-    const newNotification: Notification = {
-      ...notification,
+  const addNotification = (notificationData: Omit<Notification, 'id' | 'createdAt' | 'updatedAt' | 'userId' | 'type'> & { userId?: string; type?: Notification['type'] }) => {
+    const newNotif: Notification = {
+      ...notificationData,
+      userId: notificationData.userId || user?.id || '',
+      type: notificationData.type || 'system',
       id: Math.random().toString(36).substr(2, 9),
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
-    setNotifications(prev => [newNotification, ...prev]);
+    setNotifications(prev => [newNotif, ...prev]);
   };
 
-  const markAsRead = (id: string) => {
-    setNotifications(prev =>
-      prev.map(n => (n.id === id ? { ...n, read: true } : n))
-    );
+  const markAsRead = async (id: string) => {
+    try {
+      await markReadAPI(id);
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    } catch (error) {
+      console.error("Failed to mark as read:", error);
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  const markAllAsRead = async () => {
+    try {
+      await markAllReadAPI();
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    } catch (error) {
+      console.error("Failed to mark all as read:", error);
+    }
   };
 
-  const clearNotifications = () => {
-    setNotifications([]);
+  const deleteNotification = async (id: string) => {
+    try {
+      await deleteNotifAPI(id);
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    } catch (error) {
+      console.error("Failed to delete notification:", error);
+    }
   };
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
     <NotificationContext.Provider
       value={{
         notifications,
         unreadCount,
+        fetchNotifications,
         addNotification,
         markAsRead,
         markAllAsRead,
-        clearNotifications,
+        deleteNotification,
       }}
     >
       {children}

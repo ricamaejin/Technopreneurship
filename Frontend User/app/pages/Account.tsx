@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Header } from '../components/Header';
 import { Button } from '../components/ui/button';
@@ -8,28 +8,41 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Badge } from '../components/ui/badge';
-import { fetchItems, type Item } from '../services/api';
-import { Calendar, MapPin, Star, Package, Edit } from 'lucide-react';
+import { AvatarCropModal } from '../components/AvatarCropModal';
+import { fetchItems, updateUserProfile, type Item } from '../services/api';
+import { fetchReviewsByOwnerId, type Review } from '../services/api';
+import { Calendar, MapPin, Star, Package, Edit, Loader2, Camera } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 
 export default function Account() {
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(user?.name || '');
-  const [email, setEmail] = useState(user?.email || '');
+  const [avatar, setAvatar] = useState(user?.avatar || '');
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [userListings, setUserListings] = useState<Item[]>([]);
+  const [userReviews, setUserReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [selectedImageForCrop, setSelectedImageForCrop] = useState<string>('');
 
   useEffect(() => {
     const loadUserListings = async () => {
       try {
         setIsLoading(true);
-        const allItems = await fetchItems();
+        const [allItems, reviews] = await Promise.all([
+          fetchItems(),
+          user?.id ? fetchReviewsByOwnerId(user.id) : Promise.resolve([]),
+        ]);
         // Filter items by owner ID
         const userItems = allItems.filter(item => item.ownerId === user?.id);
         setUserListings(userItems);
+        setUserReviews(reviews);
       } catch (error) {
         console.error("Failed to fetch user listings:", error);
         toast.error("Failed to load listings");
@@ -43,15 +56,112 @@ export default function Account() {
     }
   }, [user?.id]);
 
+  useEffect(() => {
+    // Sync local state when user updates (e.g., after avatar change)
+    if (user?.avatar) {
+      setAvatar(user.avatar);
+    }
+    if (user?.name) {
+      setName(user.name);
+    }
+  }, [user?.avatar, user?.name]);
+
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setSelectedImageForCrop(reader.result as string);
+      setShowCropModal(true);
+    };
+    reader.readAsDataURL(file);
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleCropSave = async (croppedImage: string) => {
+    // Use _id if id is not available (MongoDB returns _id)
+    const userId = user?.id || user?._id;
+    
+    if (!userId) {
+      toast.error('User not found');
+      return;
+    }
+
+    try {
+      const updatedUser = await updateUserProfile({
+        avatar: croppedImage,
+      });
+
+      if (setUser) {
+        setUser(updatedUser);
+      }
+
+      toast.success('Profile picture updated!');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update profile picture';
+      toast.error(message);
+      console.error('Failed to update avatar:', error);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!user?.id) {
+      toast.error('User not found');
+      return;
+    }
+
+    if (!name.trim()) {
+      toast.error('Name cannot be empty');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const updateData: Record<string, string> = { name };
+      
+      // If a new avatar file was selected, use it; otherwise, keep the current one
+      if (avatarFile) {
+        updateData.avatar = avatar;
+      } else if (avatar !== user.avatar) {
+        updateData.avatar = avatar;
+      }
+
+      const updatedUser = await updateUserProfile(updateData);
+      
+      // Update the auth context with new user data
+      if (setUser) {
+        setUser(updatedUser);
+      }
+
+      toast.success('Profile updated successfully!');
+      setIsEditing(false);
+      setAvatarFile(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update profile';
+      toast.error(message);
+      console.error('Failed to update profile:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setName(user?.name || '');
+    setAvatar(user?.avatar || '');
+    setAvatarFile(null);
+    setIsEditing(false);
+  };
+
   if (!user) {
     navigate('/login');
     return null;
   }
-
-  const handleSave = () => {
-    // In production, this would update the user profile via API
-    setIsEditing(false);
-  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -65,6 +175,7 @@ export default function Account() {
             <TabsList>
               <TabsTrigger value="profile">Profile</TabsTrigger>
               <TabsTrigger value="listings">My Listings</TabsTrigger>
+              <TabsTrigger value="reviews">Reviews</TabsTrigger>
             </TabsList>
 
             <TabsContent value="profile" className="space-y-6">
@@ -77,12 +188,34 @@ export default function Account() {
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="flex items-center gap-6">
-                    <Avatar className="h-24 w-24">
-                      <AvatarImage src={user.avatar} alt={user.name} />
-                      <AvatarFallback className="text-2xl">
-                        {user.name.split(' ').map(n => n[0]).join('')}
-                      </AvatarFallback>
-                    </Avatar>
+                    <div 
+                      className="relative cursor-pointer group"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Avatar className="h-24 w-24 ring-2 ring-transparent group-hover:ring-primary transition-all">
+                        <AvatarImage src={avatar || user.avatar} alt={user.name} />
+                        <AvatarFallback className="text-2xl">
+                          {user.name.split(' ').map(n => n[0]).join('')}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 rounded-full transition-colors flex items-center justify-center">
+                        <Camera className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                      {isUploadingAvatar && (
+                        <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+                          <Loader2 className="h-6 w-6 text-white animate-spin" />
+                        </div>
+                      )}
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleAvatarUpload}
+                      disabled={isUploadingAvatar}
+                      title="Upload profile picture"
+                    />
                     <div>
                       <h3 className="text-lg font-semibold">{user.name}</h3>
                       <p className="text-sm text-muted-foreground">{user.email}</p>
@@ -109,11 +242,12 @@ export default function Account() {
                         </Button>
                       ) : (
                         <div className="flex gap-2">
-                          <Button variant="outline" size="sm" onClick={() => setIsEditing(false)}>
+                          <Button variant="outline" size="sm" onClick={handleCancel} disabled={isSaving}>
                             Cancel
                           </Button>
-                          <Button size="sm" onClick={handleSave}>
-                            Save Changes
+                          <Button size="sm" onClick={handleSave} disabled={isSaving}>
+                            {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                            {isSaving ? 'Saving...' : 'Save Changes'}
                           </Button>
                         </div>
                       )}
@@ -135,10 +269,13 @@ export default function Account() {
                         <Input
                           id="email"
                           type="email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          disabled={!isEditing}
+                          value={user.email}
+                          disabled
+                          className="bg-muted"
                         />
+                        <p className="text-xs text-muted-foreground">
+                          Contact support to change your email address
+                        </p>
                       </div>
 
                       <div className="grid gap-2">
@@ -223,9 +360,14 @@ export default function Account() {
                     <div className="grid gap-4">
                       {userListings.map((item) => (
                         <div
-                          key={item.id}
+                          key={item.id || item._id}
                           className="flex gap-4 p-4 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer"
-                          onClick={() => navigate(`/item/${item.id}`)}
+                          onClick={() => {
+                            const itemId = item.id || item._id;
+                            if (itemId) {
+                              navigate(`/item/${itemId}`);
+                            }
+                          }}
                         >
                           <img
                             src={item.images[0]}
@@ -268,9 +410,56 @@ export default function Account() {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            <TabsContent value="reviews" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recent Reviews</CardTitle>
+                  <CardDescription>
+                    Feedback left by borrowers on your listings
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {userReviews.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Star className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">No reviews yet</h3>
+                      <p className="text-muted-foreground">
+                        Reviews will appear here after people borrow and rate your items.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-4">
+                      {userReviews.map((review) => (
+                        <div key={review.id || review._id} className="rounded-lg border p-4 space-y-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="font-medium">{review.reviewerName}</p>
+                              <p className="text-xs text-muted-foreground">For {review.itemTitle}</p>
+                            </div>
+                            <div className="flex items-center gap-1 text-sm font-medium">
+                              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                              {review.rating}
+                            </div>
+                          </div>
+                          <p className="text-sm text-muted-foreground">{review.comment}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
         </div>
       </div>
+
+      <AvatarCropModal
+        isOpen={showCropModal}
+        onClose={() => setShowCropModal(false)}
+        onSave={handleCropSave}
+        imageSrc={selectedImageForCrop}
+      />
     </div>
   );
 }

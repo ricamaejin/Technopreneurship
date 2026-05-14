@@ -4,12 +4,31 @@ import {
   getItems,
   getFeaturedItems,
   getItemById,
+  getItemsByOwnerId,
   updateItem,
+  deleteItem,
 } from "../services/item.service";
 
 export const createItemHandler = async (req: Request, res: Response): Promise<void> => {
   try {
-    const itemData = req.body;
+    const user = (req as any).user;
+    if (!user?.id || !user?.name) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+     const itemData = {
+       ...req.body,
+       ownerId: user.id,
+       ownerName: user.name,
+       ownerAvatar: user.avatar,
+     };
+
+    if (!itemData.title || !itemData.description || !itemData.category || !itemData.condition) {
+      res.status(400).json({ message: "Missing required fields" });
+      return;
+    }
+
     const item = await createItem(itemData);
     res.status(201).json(item);
   } catch (error) {
@@ -56,8 +75,40 @@ export const getItemByIdHandler = async (req: Request, res: Response): Promise<v
   }
 };
 
+export const getItemsByOwnerIdHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // If authenticated via /owner/me, use user from token
+    const userId = (req as any).user?.id;
+    if (userId) {
+      const items = await getItemsByOwnerId(userId);
+      res.json(items);
+      return;
+    }
+
+    // Public route /owner/:ownerId
+    const { ownerId } = req.params;
+    const publicOwnerId = Array.isArray(ownerId) ? ownerId[0] : ownerId;
+
+    if (!publicOwnerId) {
+      res.status(400).json({ message: "Owner ID is required" });
+      return;
+    }
+
+    const items = await getItemsByOwnerId(publicOwnerId);
+    res.json(items);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch items", error });
+  }
+};
+
 export const updateItemHandler = async (req: Request, res: Response): Promise<void> => {
   try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
     const { id } = req.params;
     const itemId = Array.isArray(id) ? id[0] : id;
 
@@ -66,14 +117,61 @@ export const updateItemHandler = async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    const updateData = req.body;
-    const item = await updateItem(itemId, updateData);
-    if (!item) {
+    const existingItem = await getItemById(itemId);
+    if (!existingItem) {
       res.status(404).json({ message: "Item not found" });
       return;
     }
+
+    // Check if user owns this item
+    if (existingItem.ownerId !== userId) {
+      res.status(403).json({ message: "You can only update your own items" });
+      return;
+    }
+
+    const updateData = req.body;
+    const item = await updateItem(itemId, updateData);
     res.json(item);
   } catch (error) {
     res.status(500).json({ message: "Failed to update item", error });
+  }
+};
+
+export const deleteItemHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    const { id } = req.params;
+    const itemId = Array.isArray(id) ? id[0] : id;
+
+    if (!itemId) {
+      res.status(400).json({ message: "Invalid item id" });
+      return;
+    }
+
+    const existingItem = await getItemById(itemId);
+    if (!existingItem) {
+      res.status(404).json({ message: "Item not found" });
+      return;
+    }
+
+    // Check if user owns this item
+    if (existingItem.ownerId !== userId) {
+      res.status(403).json({ message: "You can only delete your own items" });
+      return;
+    }
+
+    const deleted = await deleteItem(itemId);
+    if (deleted) {
+      res.json({ message: "Item deleted successfully" });
+    } else {
+      res.status(500).json({ message: "Failed to delete item" });
+    }
+  } catch (error) {
+    res.status(500).json({ message: "Failed to delete item", error });
   }
 };

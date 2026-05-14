@@ -40,7 +40,8 @@ export default function Signup() {
       await signup(name, email, password);
       navigate('/');
     } catch (err) {
-      setError('Failed to create account. Please try again.');
+      const message = err instanceof Error ? err.message : 'Failed to create account. Please try again.';
+      setError(message);
     }
   };
 

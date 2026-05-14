@@ -1,0 +1,55 @@
+import mongoose, { Schema, Document } from "mongoose";
+
+export interface INotification extends Document {
+  userId: string;
+  type: 'borrow_request' | 'request_approved' | 'request_rejected' | 'item_returned' | 'new_review' | 'system';
+  title: string;
+  message: string;
+  referenceId?: string; // e.g., borrow request ID, item ID
+  referenceType?: 'borrowRequest' | 'item' | 'review';
+  read: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const notificationSchema = new Schema<INotification>({
+  userId: {
+    type: String,
+    required: true,
+    index: true,
+  },
+  type: {
+    type: String,
+    enum: ['borrow_request', 'request_approved', 'request_rejected', 'item_returned', 'new_review', 'system'],
+    required: true,
+  },
+  title: {
+    type: String,
+    required: true,
+  },
+  message: {
+    type: String,
+    required: true,
+  },
+  referenceId: {
+    type: String,
+  },
+  referenceType: {
+    type: String,
+    enum: ['borrowRequest', 'item', 'review'],
+  },
+  read: {
+    type: Boolean,
+    default: false,
+  },
+}, {
+  timestamps: true,
+});
+
+// Index for efficient querying
+notificationSchema.index({ userId: 1, createdAt: -1 });
+notificationSchema.index({ read: 1 });
+
+const Notification = mongoose.model<INotification>("Notification", notificationSchema);
+
+export default Notification;

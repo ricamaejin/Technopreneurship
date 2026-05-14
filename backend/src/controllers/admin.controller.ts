@@ -9,6 +9,7 @@ import {
   getBorrowVolumeData,
   getTopLenders,
   getAdminStats,
+  getDashboardData,
 } from "../services/admin.service";
 
 export const getUsers = async (req: Request, res: Response) => {
@@ -98,5 +99,15 @@ export const getStats = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error fetching admin stats:", error);
     res.status(500).json({ message: "Failed to fetch admin stats" });
+  }
+};
+
+export const getDashboard = async (req: Request, res: Response) => {
+  try {
+    const data = await getDashboardData();
+    res.status(200).json(data);
+  } catch (error) {
+    console.error("Error fetching dashboard data:", error);
+    res.status(500).json({ message: "Failed to fetch dashboard data" });
   }
 };

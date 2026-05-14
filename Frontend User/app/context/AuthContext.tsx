@@ -1,8 +1,17 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { type User, fetchUsers, createUser } from '../services/api';
+import {
+  type User,
+  clearAdminToken,
+  clearUserToken,
+  fetchCurrentUser,
+  loginUser,
+  setUserToken,
+  signupUser,
+} from '../services/api';
 
 interface AuthContextType {
   user: User | null;
+  setUser: (user: User | null) => void;
   login: (email: string, password: string) => Promise<void>;
   signup: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
@@ -15,27 +24,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check for stored user on mount
   useEffect(() => {
-    const storedUser = localStorage.getItem('lendly_user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setIsLoading(false);
+    const initializeAuth = async () => {
+      const token = localStorage.getItem('lendly_token');
+
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const currentUser = await fetchCurrentUser();
+        setUser(currentUser);
+        if (!currentUser.isAdmin) {
+          clearAdminToken();
+        }
+      } catch {
+        clearUserToken();
+        clearAdminToken();
+        setUser(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeAuth();
   }, []);
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const users = await fetchUsers();
-      const found = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-      if (!found) throw new Error('No user with that email');
-      // Note: password is not stored in the current backend; this performs email-based login only
-      setUser(found);
-      localStorage.setItem('lendly_user', JSON.stringify(found));
+      const result = await loginUser(email, password);
+      setUser(result.user);
+      setUserToken(result.token);
+      if (!result.user.isAdmin) {
+        clearAdminToken();
+      }
     } catch (err) {
       setUser(null);
-      localStorage.removeItem('lendly_user');
+      clearUserToken();
+      clearAdminToken();
       throw err;
     } finally {
       setIsLoading(false);
@@ -45,21 +73,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signup = async (name: string, email: string, password: string) => {
     setIsLoading(true);
     try {
-      const payload: Partial<User> = {
-        name,
-        email,
-        avatar: `https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop`,
-        isAdmin: false,
-        joinDate: new Date().toISOString().split('T')[0],
-        rating: 0,
-        reviewCount: 0,
-      };
-      const created = await createUser(payload);
-      setUser(created);
-      localStorage.setItem('lendly_user', JSON.stringify(created));
+      const result = await signupUser({ name, email, password });
+      setUser(result.user);
+      setUserToken(result.token);
+      clearAdminToken();
     } catch (err) {
       setUser(null);
-      localStorage.removeItem('lendly_user');
+      clearUserToken();
+      clearAdminToken();
       throw err;
     } finally {
       setIsLoading(false);
@@ -68,11 +89,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('lendly_user');
+    clearUserToken();
+    clearAdminToken();
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, signup, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, setUser, login, signup, logout, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

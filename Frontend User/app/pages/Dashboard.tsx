@@ -31,7 +31,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { categories } from "../data/categories";
-import { fetchItems, fetchBorrowRequests, fetchBorrowRequestsByBorrowerId, fetchBorrowRequestsByOwnerId, type BorrowRequest, type Item } from "../services/api";
+import { fetchUserItems, fetchBorrowRequestsByBorrowerId, fetchBorrowRequestsByOwnerId, deleteItem, updateBorrowRequest as updateBorrowRequestAPI, type BorrowRequest, type Item } from "../services/api";
 import { Link, useNavigate } from "react-router";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -57,25 +57,31 @@ export default function Dashboard() {
     available: true,
   });
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        setIsLoading(true);
-        const [itemsData, requestsData] = await Promise.all([
-          fetchItems(),
-          fetchBorrowRequests(),
-        ]);
-        setItems(itemsData);
-        setRequests(requestsData);
-      } catch (error) {
-        console.error("Failed to fetch data:", error);
-        toast.error("Failed to load dashboard data");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadData();
-  }, []);
+   useEffect(() => {
+     const loadData = async () => {
+       if (!user) return;
+       try {
+         setIsLoading(true);
+         const userId = user.id || user._id || "";
+         if (!userId) {
+           throw new Error("User ID not found");
+         }
+         const [myItemsData, myRequestsData, incomingRequestsData] = await Promise.all([
+           fetchUserItems(),
+           fetchBorrowRequestsByBorrowerId(userId),
+           fetchBorrowRequestsByOwnerId(userId),
+         ]);
+         setItems(myItemsData);
+         setRequests([...myRequestsData, ...incomingRequestsData]);
+       } catch (error) {
+         console.error("Failed to fetch dashboard data:", error);
+         toast.error(error instanceof Error ? error.message : "Failed to load dashboard data");
+       } finally {
+         setIsLoading(false);
+       }
+     };
+     loadData();
+   }, [user]);
 
   if (!user) {
     navigate('/login');
@@ -87,7 +93,7 @@ export default function Dashboard() {
   const incomingRequests = requests.filter(req => req.ownerId === user.id);
 
   const handleEditItem = (item: Item) => {
-    setEditingItemId(item.id);
+    setEditingItemId(item.id || item._id || null);
     setEditForm({
       title: item.title,
       description: item.description,
@@ -100,6 +106,20 @@ export default function Dashboard() {
       available: item.available,
     });
     setIsEditDialogOpen(true);
+  };
+
+  const handleDeleteItem = async (itemId: string) => {
+    if (!window.confirm("Are you sure you want to delete this item? This action cannot be undone.")) {
+      return;
+    }
+    try {
+      await deleteItem(itemId);
+      setItems(prev => prev.filter(item => (item.id || item._id) !== itemId));
+      toast.success("Item deleted successfully");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to delete item";
+      toast.error(message);
+    }
   };
 
   const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -208,18 +228,30 @@ export default function Dashboard() {
     }
   };
 
-  const handleApproveRequest = (requestId: string) => {
-    setRequests(prev => prev.map(req => req.id === requestId ? { ...req, status: 'Approved' } : req));
-    toast.success("Request approved!", {
-      description: "The borrower has been notified.",
-    });
+  const handleApproveRequest = async (requestId: string) => {
+    try {
+      await updateBorrowRequestAPI(requestId, { status: "Approved" });
+      setRequests(prev => prev.map(req => req.id === requestId ? { ...req, status: 'Approved' } : req));
+      toast.success("Request approved!", {
+        description: "The borrower has been notified.",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to approve request";
+      toast.error(message);
+    }
   };
 
-  const handleRejectRequest = (requestId: string) => {
-    setRequests(prev => prev.map(req => req.id === requestId ? { ...req, status: 'Rejected' } : req));
-    toast.info("Request rejected", {
-      description: "The borrower has been notified.",
-    });
+  const handleRejectRequest = async (requestId: string) => {
+    try {
+      await updateBorrowRequestAPI(requestId, { status: "Rejected" });
+      setRequests(prev => prev.map(req => req.id === requestId ? { ...req, status: 'Rejected' } : req));
+      toast.info("Request rejected", {
+        description: "The borrower has been notified.",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to reject request";
+      toast.error(message);
+    }
   };
 
   return (
@@ -322,7 +354,11 @@ export default function Dashboard() {
               </Card>
             ) : (
               myItems.map(item => (
-                <Card key={item.id}>
+                <Card
+                  key={item.id || item._id || item.title}
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => navigate(`/item/${item.id || item._id}`)}
+                >
                   <CardContent className="p-6">
                     <div className="flex gap-4">
                       <img 
@@ -337,10 +373,24 @@ export default function Dashboard() {
                             <p className="text-sm text-muted-foreground line-clamp-1">{item.description}</p>
                           </div>
                           <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={() => handleEditItem(item)}>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditItem(item);
+                              }}
+                            >
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button variant="outline" size="sm">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                (item.id || item._id) && handleDeleteItem(item.id || item._id);
+                              }}
+                            >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>

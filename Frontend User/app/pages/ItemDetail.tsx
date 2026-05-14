@@ -10,6 +10,7 @@ import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
 import { Calendar } from "../components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { 
   MapPin, 
   Star, 
@@ -20,17 +21,31 @@ import {
   Send,
   CheckCircle
 } from "lucide-react";
-import { fetchItemById, type Item } from "../services/api";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
+import { useNotifications } from "../context/NotificationContext";
+import {
+  createBorrowRequest,
+  createReview,
+  fetchItemById,
+  fetchReviewsByItemId,
+  type Item,
+  type Review,
+} from "../services/api";
 
 export default function ItemDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { addNotification } = useNotifications();
   const [item, setItem] = useState<Item | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [isRequesting, setIsRequesting] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
@@ -44,6 +59,8 @@ export default function ItemDetail() {
         setIsLoading(true);
         const data = await fetchItemById(id);
         setItem(data);
+        const itemReviews = await fetchReviewsByItemId(id);
+        setReviews(itemReviews);
       } catch (error) {
         console.error("Failed to fetch item:", error);
         toast.error("Failed to load item");
@@ -59,8 +76,27 @@ export default function ItemDetail() {
       navigate("/login");
       return;
     }
+    if (!item) return;
+    if (user.id === item.ownerId || user._id === item.ownerId) {
+      toast.error("You cannot borrow your own item");
+      return;
+    }
     setIsDialogOpen(true);
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container mx-auto px-4 py-16 text-center">
+          <div className="flex items-center justify-center gap-2">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <span className="text-muted-foreground">Loading item...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!item) {
     return (
@@ -68,6 +104,7 @@ export default function ItemDetail() {
         <Header />
         <div className="container mx-auto px-4 py-16 text-center">
           <h1 className="text-2xl font-semibold mb-4">Item not found</h1>
+          <p className="text-muted-foreground mb-4">This item may have been removed or does not exist.</p>
           <Link to="/">
             <Button>Back to Browse</Button>
           </Link>
@@ -76,20 +113,99 @@ export default function ItemDetail() {
     );
   }
 
-  const handleSubmitRequest = () => {
+  const handleSubmitRequest = async () => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+
+    if (user.id === item.ownerId || user._id === item.ownerId) {
+      toast.error("You cannot borrow your own item");
+      return;
+    }
+
     if (!startDate || !endDate) {
       toast.error("Please select both start and end dates");
       return;
     }
-    
-    toast.success("Borrow request sent successfully!", {
-      description: `${item.ownerName} will review your request soon.`,
-    });
-    
-    setIsDialogOpen(false);
-    setStartDate(undefined);
-    setEndDate(undefined);
-    setMessage("");
+
+    setIsRequesting(true);
+    try {
+      await createBorrowRequest({
+        itemId: item.id || item._id || "",
+        itemTitle: item.title,
+        itemImage: item.images[0],
+        borrowerId: user.id || user._id || "",
+        borrowerName: user.name,
+        borrowerAvatar: user.avatar,
+        ownerId: item.ownerId,
+        ownerName: item.ownerName,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        status: "Pending",
+        message,
+      });
+
+      toast.success("Borrow request sent successfully!", {
+        description: `${item.ownerName} will review your request soon.`,
+      });
+      addNotification({
+        title: "Borrow request sent",
+        message: `Your request for ${item.title} is pending approval.`,
+        read: false,
+      });
+
+      setIsDialogOpen(false);
+      setStartDate(undefined);
+      setEndDate(undefined);
+      setMessage("");
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : "Failed to send borrow request";
+      toast.error(messageText);
+    } finally {
+      setIsRequesting(false);
+    }
+  };
+
+  const handleSubmitReview = async () => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+
+    if (!item) {
+      return;
+    }
+
+    if (!reviewComment.trim()) {
+      toast.error("Please write a review comment");
+      return;
+    }
+
+    setIsSubmittingReview(true);
+    try {
+      const result = await createReview({
+        itemId: item.id || item._id || "",
+        rating: reviewRating,
+        comment: reviewComment,
+      });
+
+      setReviews(prev => [result.review, ...prev]);
+      setItem(prev => (prev ? { ...prev, ownerRating: result.ownerRating } : prev));
+      setReviewComment("");
+      setReviewRating(5);
+      toast.success("Review submitted successfully");
+      addNotification({
+        title: "Review submitted",
+        message: `You reviewed ${item.ownerName}.`,
+        read: false,
+      });
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : "Failed to submit review";
+      toast.error(messageText);
+    } finally {
+      setIsSubmittingReview(false);
+    }
   };
 
   const conditionColors = {
@@ -161,23 +277,100 @@ export default function ItemDetail() {
             </div>
 
             {/* Owner Info */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Owner Information</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Link
+                    to={`/user/${item.ownerId}`}
+                    className="flex items-center gap-4 hover:bg-muted/50 rounded-lg p-2 -mx-2 transition-colors"
+                  >
+                    <Avatar className="h-12 w-12">
+                      <AvatarImage src={item.ownerAvatar} alt={item.ownerName} />
+                      <AvatarFallback>{item.ownerName.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <div className="font-semibold hover:text-primary transition-colors">{item.ownerName}</div>
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                        <span>{item.ownerRating.toFixed(1)} rating</span>
+                      </div>
+                    </div>
+                  </Link>
+                </CardContent>
+              </Card>
+
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Owner Information</CardTitle>
+                <CardTitle className="text-base">Reviews</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage src={item.ownerAvatar} alt={item.ownerName} />
-                    <AvatarFallback>{item.ownerName.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <div className="font-semibold">{item.ownerName}</div>
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                      <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                      <span>{item.ownerRating} rating</span>
-                    </div>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <p className="text-sm font-medium">Owner rating</p>
+                    <p className="text-sm text-muted-foreground">Based on community feedback</p>
                   </div>
+                  <div className="text-right">
+                    <div className="flex items-center gap-1 justify-end">
+                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                      <span className="font-semibold">{item.ownerRating.toFixed(1)}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{reviews.length} review{reviews.length === 1 ? "" : "s"}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Label htmlFor="review-comment">Leave a review</Label>
+                  <div className="grid gap-3 sm:grid-cols-[140px_1fr]">
+                    <Select value={reviewRating.toString()} onValueChange={(value) => setReviewRating(Number(value))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Rating" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5 stars</SelectItem>
+                        <SelectItem value="4">4 stars</SelectItem>
+                        <SelectItem value="3">3 stars</SelectItem>
+                        <SelectItem value="2">2 stars</SelectItem>
+                        <SelectItem value="1">1 star</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Textarea
+                      id="review-comment"
+                      placeholder="Share your experience with this owner..."
+                      value={reviewComment}
+                      onChange={(e) => setReviewComment(e.target.value)}
+                      rows={3}
+                    />
+                  </div>
+                  <Button onClick={handleSubmitReview} disabled={isSubmittingReview || !user || user.id === item.ownerId}>
+                    {isSubmittingReview ? "Submitting..." : "Submit Review"}
+                  </Button>
+                  {user?.id === item.ownerId && (
+                    <p className="text-xs text-muted-foreground">You cannot review your own item.</p>
+                  )}
+                </div>
+
+                <div className="space-y-3 border-t pt-4">
+                  {reviews.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No reviews yet.</p>
+                  ) : (
+                    reviews.map((review) => (
+                      <div key={review.id || review._id} className="rounded-lg border p-3 space-y-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium">{review.reviewerName}</p>
+                            <p className="text-xs text-muted-foreground">{format(new Date(review.createdAt), "PPP")}</p>
+                          </div>
+                          <div className="flex items-center gap-1 text-sm font-medium">
+                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                            {review.rating}
+                          </div>
+                        </div>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{review.comment}</p>
+                      </div>
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -198,24 +391,29 @@ export default function ItemDetail() {
               </CardContent>
             </Card>
 
-            {/* Borrow Request Button */}
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <Button 
-                size="lg" 
-                className="w-full" 
-                disabled={!item.available}
-                onClick={handleBorrowClick}
-              >
-                <Send className="h-4 w-4 mr-2" />
-                Request to Borrow
+            {/* Borrow Request Button / Manage Button */}
+            {user?.id === item.ownerId || user?._id === item.ownerId ? (
+              <Button asChild size="lg" className="w-full" variant="outline">
+                <Link to="/dashboard">Manage Item</Link>
               </Button>
-              <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                  <DialogTitle>Request to Borrow</DialogTitle>
-                  <DialogDescription>
-                    Fill out the details below to send a borrow request to {item.ownerName}.
-                  </DialogDescription>
-                </DialogHeader>
+            ) : (
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <Button
+                  size="lg"
+                  className="w-full"
+                  disabled={!item.available || isRequesting}
+                  onClick={handleBorrowClick}
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  {isRequesting ? "Sending Request..." : "Request to Borrow"}
+                </Button>
+                <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle>Request to Borrow</DialogTitle>
+                    <DialogDescription>
+                      Fill out the details below to send a borrow request to {item.ownerName}.
+                    </DialogDescription>
+                  </DialogHeader>
                 
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
@@ -297,7 +495,8 @@ export default function ItemDetail() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-          </div>
+          )}
+        </div>
         </div>
       </div>
     </div>

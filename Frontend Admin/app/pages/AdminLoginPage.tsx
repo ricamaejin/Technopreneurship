@@ -5,6 +5,7 @@ import { Input } from "../components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Shield, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+import { loginAdmin } from "../services/admin-api";
 
 export default function AdminLoginPage() {
   const navigate = useNavigate();
@@ -16,28 +17,31 @@ export default function AdminLoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validate form
+
     if (!email || !password) {
       toast.error("Please fill in all fields");
       return;
     }
 
-    // Simulate API call
     setIsLoading(true);
-    setTimeout(() => {
-      // Mock validation - admin@platform.com / admin123
-      if (email === "admin@platform.com" && password === "admin123") {
-        toast.success("Login successful! Welcome back!");
-        // Store session
-        localStorage.setItem("adminToken", "mock-jwt-token");
-        localStorage.setItem("adminEmail", email);
-        navigate("/admin");
-      } else {
-        toast.error("Invalid credentials. Try admin@platform.com / admin123");
+    try {
+      const result = await loginAdmin(email, password);
+
+      if (!result.user.isAdmin) {
+        toast.error("This account does not have admin access");
+        return;
       }
+
+      toast.success("Login successful! Welcome back!");
+      localStorage.setItem("adminToken", result.token);
+      localStorage.setItem("adminEmail", result.user.email);
+      console.log("Admin login success, navigating to /admin");
+      navigate("/admin");
+    } catch {
+      toast.error("Invalid credentials");
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (

@@ -1,4 +1,4 @@
-import { Bell } from 'lucide-react';
+import { Bell, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from './ui/button';
 import {
   DropdownMenu,
@@ -10,12 +10,38 @@ import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
 import { useNotifications } from '../context/NotificationContext';
 import { formatDistanceToNow } from 'date-fns';
+import { updateBorrowRequest } from '../services/api';
+import { toast } from 'sonner';
 
 export function NotificationBell() {
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead, fetchNotifications } = useNotifications();
 
-  const handleNotificationClick = (id: string) => {
-    markAsRead(id);
+  const handleNotificationClick = async (id: string) => {
+    await markAsRead(id);
+  };
+
+  const handleApproveRequest = async (e: React.MouseEvent, requestId: string, notifId: string) => {
+    e.stopPropagation();
+    try {
+      await updateBorrowRequest(requestId, { status: "Approved" });
+      await markAsRead(notifId);
+      toast.success("Request approved");
+      await fetchNotifications();
+    } catch (error) {
+      toast.error("Failed to approve request");
+    }
+  };
+
+  const handleRejectRequest = async (e: React.MouseEvent, requestId: string, notifId: string) => {
+    e.stopPropagation();
+    try {
+      await updateBorrowRequest(requestId, { status: "Rejected" });
+      await markAsRead(notifId);
+      toast.info("Request rejected");
+      await fetchNotifications();
+    } catch (error) {
+      toast.error("Failed to reject request");
+    }
   };
 
   return (
@@ -59,7 +85,7 @@ export function NotificationBell() {
             <ScrollArea className="h-80">
               <div className="space-y-2 pr-4">
                 {notifications.map((notification, index) => (
-                  <div key={notification.id}>
+                  <div key={notification.id} className="group">
                     <button
                       onClick={() => handleNotificationClick(notification.id)}
                       className={`w-full text-left p-3 rounded-lg transition-colors ${
@@ -87,7 +113,32 @@ export function NotificationBell() {
                         )}
                       </div>
                     </button>
-                    {index < notifications.length - 1 && <Separator className="my-0" />}
+
+                    {/* Quick action buttons for pending borrow requests */}
+                    {notification.type === 'borrow_request' && !notification.read && notification.referenceId && (
+                      <div className="flex gap-2 mt-2 ml-2">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="h-8 px-3"
+                          onClick={(e) => handleApproveRequest(e, notification.referenceId!, notification.id)}
+                        >
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 px-3"
+                          onClick={(e) => handleRejectRequest(e, notification.referenceId!, notification.id)}
+                        >
+                          <XCircle className="h-3 w-3 mr-1" />
+                          Reject
+                        </Button>
+                      </div>
+                    )}
+
+                    {index < notifications.length - 1 && <Separator className="my-2" />}
                   </div>
                 ))}
               </div>

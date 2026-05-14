@@ -1,9 +1,11 @@
+import bcrypt from "bcryptjs";
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface IUser extends Document {
   name: string;
   email: string;
   avatar?: string;
+  password: string;
   isAdmin: boolean;
   joinDate: string;
   rating: number;
@@ -25,6 +27,11 @@ const userSchema = new Schema<IUser>(
       unique: true,
       lowercase: true,
       trim: true,
+    },
+    password: {
+      type: String,
+      required: true,
+      select: false,
     },
     avatar: {
       type: String,
@@ -50,6 +57,14 @@ const userSchema = new Schema<IUser>(
     timestamps: true,
   }
 );
+
+userSchema.pre("save", async function (this: IUser) {
+  if (!this.isModified("password")) {
+    return;
+  }
+
+  this.password = await bcrypt.hash(this.password, 10);
+});
 
 const User = mongoose.model<IUser>("User", userSchema);
 

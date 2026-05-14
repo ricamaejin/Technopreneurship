@@ -11,3 +11,22 @@ export const getUsers = async (): Promise<IUser[]> => {
 export const getUserById = async (id: string): Promise<IUser | null> => {
   return User.findById(id);
 };
+
+export const updateUserProfile = async (
+  id: string,
+  updateData: Partial<IUser>
+): Promise<IUser | null> => {
+  const allowedFields = ["name", "avatar"];
+  const sanitizedData: Record<string, unknown> = {};
+
+  for (const key of allowedFields) {
+    if (key in updateData) {
+      sanitizedData[key] = updateData[key as keyof IUser];
+    }
+  }
+
+  return User.findByIdAndUpdate(id, sanitizedData, {
+    new: true,
+    runValidators: true,
+  });
+};

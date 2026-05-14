@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router";
 import { Header } from "../components/Header";
 import { Button } from "../components/ui/button";
@@ -8,13 +8,18 @@ import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Switch } from "../components/ui/switch";
-import { ArrowLeft, Upload, ImagePlus, Sparkles } from "lucide-react";
+import { ArrowLeft, Upload, ImagePlus, Sparkles, Loader2, X } from "lucide-react";
 import { Link } from "react-router";
 import { categories } from "../data/categories";
+import { createItem, type Item } from "../services/api";
 import { toast } from "sonner";
+import { useNotifications } from "../context/NotificationContext";
 
 export default function AddListing() {
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { addNotification } = useNotifications();
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -25,9 +30,52 @@ export default function AddListing() {
     location: "",
     available: true,
     isFeatured: false,
+    images: [] as string[],
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    if (formData.images.length >= 5) {
+      toast.error("Maximum 5 images allowed");
+      return;
+    }
+
+    const fileArray = Array.from(files);
+    const remainingSlots = 5 - formData.images.length;
+    const filesToProcess = fileArray.slice(0, remainingSlots);
+
+    for (const file of filesToProcess) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error(`${file.name} exceeds 10MB limit`);
+        continue;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string;
+        setFormData(prev => ({
+          ...prev,
+          images: [...prev.images, base64]
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.title || !formData.description || !formData.category || 
@@ -36,13 +84,43 @@ export default function AddListing() {
       return;
     }
 
-    toast.success("Listing created successfully!", {
-      description: "Your item is now available for borrowing.",
-    });
-    
-    setTimeout(() => {
-      navigate("/dashboard");
-    }, 1000);
+    if (formData.images.length === 0) {
+      toast.error("Please upload at least one image");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const itemData = {
+        ...formData,
+        rentalFeePerDay: parseInt(formData.rentalFeePerDay),
+        deposit: parseInt(formData.deposit),
+        ownerName: "", // Will be populated by backend from user context
+        ownerAvatar: "", // Will be populated by backend from user context
+        ownerRating: 0, // Will be populated by backend
+      };
+
+      await createItem(itemData as Partial<Item>);
+
+      toast.success("Listing created successfully!", {
+        description: "Your item is now available for borrowing.",
+      });
+      addNotification({
+        title: "Listing published",
+        message: `${itemData.title} is now live on your profile.`,
+        read: false,
+      });
+      
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 1000);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create listing';
+      toast.error(message);
+      console.error('Failed to create item:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -182,12 +260,50 @@ export default function AddListing() {
               <CardTitle>Photos</CardTitle>
               <CardDescription>Upload clear photos of your item</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors cursor-pointer">
+            <CardContent className="space-y-4">
+              <div 
+                className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors cursor-pointer"
+                onClick={() => fileInputRef.current?.click()}
+              >
                 <ImagePlus className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <p className="text-sm font-medium mb-1">Click to upload photos</p>
                 <p className="text-xs text-muted-foreground">PNG, JPG up to 10MB (Max 5 photos)</p>
               </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/png,image/jpeg"
+                onChange={handleImageUpload}
+                className="hidden"
+                title="Upload item photos"
+              />
+
+              {formData.images.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Uploaded Photos ({formData.images.length}/5)</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {formData.images.map((image, index) => (
+                      <div key={index} className="relative">
+                        <img 
+                          src={image} 
+                          alt={`Preview ${index + 1}`}
+                          className="w-full h-24 object-cover rounded-lg"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveImage(index)}
+                          className="absolute -top-2 -right-2 bg-destructive text-white rounded-full p-1 hover:bg-destructive/90"
+                          aria-label={`Remove photo ${index + 1}`}
+                          title={`Remove photo ${index + 1}`}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -232,12 +348,31 @@ export default function AddListing() {
 
           {/* Submit Buttons */}
           <div className="flex gap-3">
-            <Button type="button" variant="outline" onClick={() => navigate("/")} className="flex-1">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => navigate("/")} 
+              className="flex-1"
+              disabled={isSubmitting}
+            >
               Cancel
             </Button>
-            <Button type="submit" className="flex-1">
-              <Upload className="h-4 w-4 mr-2" />
-              Publish Listing
+            <Button 
+              type="submit" 
+              className="flex-1"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Publishing...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Publish Listing
+                </>
+              )}
             </Button>
           </div>
         </form>

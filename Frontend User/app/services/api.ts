@@ -1,15 +1,40 @@
 const API_BASE_URL = "http://localhost:5000/api";
 
+const USER_TOKEN_KEY = "lendly_token";
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem(USER_TOKEN_KEY);
+
+  if (!token) {
+    return {};
+  }
+
+  return {
+    Authorization: `Bearer ${token}`,
+  };
+};
+
+const getJsonHeaders = () => ({
+  "Content-Type": "application/json",
+  ...getAuthHeaders(),
+});
+
 export interface User {
   _id?: string;
   id?: string;
   name: string;
   email: string;
   avatar?: string;
+  password?: string;
   isAdmin: boolean;
   joinDate: string;
   rating: number;
   reviewCount: number;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: User;
 }
 
 export interface Item {
@@ -32,6 +57,20 @@ export interface Item {
   createdAt: string;
 }
 
+export interface Review {
+  _id?: string;
+  id?: string;
+  itemId: string;
+  itemTitle: string;
+  reviewerId: string;
+  reviewerName: string;
+  ownerId: string;
+  ownerName: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+}
+
 export interface BorrowRequest {
   _id?: string;
   id?: string;
@@ -51,6 +90,92 @@ export interface BorrowRequest {
   returnedAt?: string;
 }
 
+export const setUserToken = (token: string) => {
+  localStorage.setItem(USER_TOKEN_KEY, token);
+};
+
+export const getUserToken = () => localStorage.getItem(USER_TOKEN_KEY);
+
+export const clearUserToken = () => {
+  localStorage.removeItem(USER_TOKEN_KEY);
+};
+
+export const clearAdminToken = () => {
+  localStorage.removeItem("adminToken");
+  localStorage.removeItem("adminEmail");
+};
+
+export const loginUser = async (email: string, password: string): Promise<AuthResponse> => {
+  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || "Failed to log in");
+  }
+
+  return response.json();
+};
+
+export const signupUser = async (payload: {
+  name: string;
+  email: string;
+  password: string;
+}): Promise<AuthResponse> => {
+  const response = await fetch(`${API_BASE_URL}/auth/signup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...payload,
+      joinDate: new Date().toISOString().split("T")[0],
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(payload.name)}`,
+      isAdmin: false,
+      rating: 0,
+      reviewCount: 0,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || "Failed to sign up");
+  }
+
+  return response.json();
+};
+
+export const fetchCurrentUser = async (): Promise<User> => {
+  const response = await fetch(`${API_BASE_URL}/auth/me`, {
+    headers: {
+      ...getAuthHeaders(),
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || "Failed to load current user");
+  }
+
+  return response.json();
+};
+
+export const fetchCurrentUserWithToken = async (token: string): Promise<User> => {
+  const response = await fetch(`${API_BASE_URL}/auth/me`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || "Failed to load current user");
+  }
+
+  return response.json();
+};
+
 // User API
 export const fetchUsers = async (): Promise<User[]> => {
   const response = await fetch(`${API_BASE_URL}/users`);
@@ -61,7 +186,7 @@ export const fetchUsers = async (): Promise<User[]> => {
 export const createUser = async (userData: Partial<User>): Promise<User> => {
   const response = await fetch(`${API_BASE_URL}/users`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getJsonHeaders(),
     body: JSON.stringify(userData),
   });
   if (!response.ok) throw new Error("Failed to create user");
@@ -69,8 +194,46 @@ export const createUser = async (userData: Partial<User>): Promise<User> => {
 };
 
 export const fetchUserById = async (id: string): Promise<User> => {
-  const response = await fetch(`${API_BASE_URL}/users/${id}`);
+  const response = await fetch(`${API_BASE_URL}/users/${id}`, {
+    headers: getAuthHeaders(),
+  });
   if (!response.ok) throw new Error("Failed to fetch user");
+  return response.json();
+};
+
+export const fetchUserProfile = async (userId: string) => {
+  const [user, items, reviews] = await Promise.all([
+    fetch(`${API_BASE_URL}/users/profile/${userId}`).then(r => {
+      if (!r.ok) throw new Error("Failed to fetch user");
+      return r.json();
+    }),
+    fetch(`${API_BASE_URL}/items/owner/${userId}`).then(r => {
+      if (!r.ok) throw new Error("Failed to fetch items");
+      return r.json();
+    }),
+    fetch(`${API_BASE_URL}/reviews/owner/${userId}`).then(r => {
+      if (!r.ok) throw new Error("Failed to fetch reviews");
+      return r.json();
+    }),
+  ]);
+  return { user, items, reviews };
+};
+
+export const updateUserProfile = async (profileData: {
+  name?: string;
+  avatar?: string;
+}): Promise<User> => {
+  const response = await fetch(`${API_BASE_URL}/users/profile/me`, {
+    method: "PUT",
+    headers: getJsonHeaders(),
+    body: JSON.stringify(profileData),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || "Failed to update profile");
+  }
+
   return response.json();
 };
 
@@ -96,7 +259,7 @@ export const fetchItemById = async (id: string): Promise<Item> => {
 export const createItem = async (itemData: Partial<Item>): Promise<Item> => {
   const response = await fetch(`${API_BASE_URL}/items`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getJsonHeaders(),
     body: JSON.stringify(itemData),
   });
   if (!response.ok) throw new Error("Failed to create item");
@@ -106,10 +269,30 @@ export const createItem = async (itemData: Partial<Item>): Promise<Item> => {
 export const updateItem = async (id: string, updateData: Partial<Item>): Promise<Item> => {
   const response = await fetch(`${API_BASE_URL}/items/${id}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: getJsonHeaders(),
     body: JSON.stringify(updateData),
   });
   if (!response.ok) throw new Error("Failed to update item");
+  return response.json();
+};
+
+export const deleteItem = async (id: string): Promise<void> => {
+  const response = await fetch(`${API_BASE_URL}/items/${id}`, {
+    method: "DELETE",
+    headers: getJsonHeaders(),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || "Failed to delete item");
+  }
+};
+
+export const fetchUserItems = async (): Promise<Item[]> => {
+  const response = await fetch(`${API_BASE_URL}/items/owner/me`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error("Failed to fetch your items");
   return response.json();
 };
 
@@ -129,16 +312,20 @@ export const fetchBorrowRequestById = async (id: string): Promise<BorrowRequest>
 export const fetchBorrowRequestsByBorrowerId = async (
   borrowerId: string
 ): Promise<BorrowRequest[]> => {
-  const response = await fetch(`${API_BASE_URL}/borrow-requests/borrower/${borrowerId}`);
-  if (!response.ok) throw new Error("Failed to fetch borrow requests");
+  const response = await fetch(`${API_BASE_URL}/borrow-requests/borrower/${borrowerId}`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error("Failed to fetch your borrow requests");
   return response.json();
 };
 
 export const fetchBorrowRequestsByOwnerId = async (
   ownerId: string
 ): Promise<BorrowRequest[]> => {
-  const response = await fetch(`${API_BASE_URL}/borrow-requests/owner/${ownerId}`);
-  if (!response.ok) throw new Error("Failed to fetch borrow requests");
+  const response = await fetch(`${API_BASE_URL}/borrow-requests/owner/${ownerId}`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error("Failed to fetch incoming requests");
   return response.json();
 };
 
@@ -147,10 +334,39 @@ export const createBorrowRequest = async (
 ): Promise<BorrowRequest> => {
   const response = await fetch(`${API_BASE_URL}/borrow-requests`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getJsonHeaders(),
     body: JSON.stringify(requestData),
   });
   if (!response.ok) throw new Error("Failed to create borrow request");
+  return response.json();
+};
+
+export const createReview = async (
+  reviewData: Partial<Review>
+): Promise<{ review: Review; ownerRating: number; reviewCount: number }> => {
+  const response = await fetch(`${API_BASE_URL}/reviews`, {
+    method: "POST",
+    headers: getJsonHeaders(),
+    body: JSON.stringify(reviewData),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || "Failed to create review");
+  }
+
+  return response.json();
+};
+
+export const fetchReviewsByItemId = async (itemId: string): Promise<Review[]> => {
+  const response = await fetch(`${API_BASE_URL}/reviews/item/${itemId}`);
+  if (!response.ok) throw new Error("Failed to fetch reviews");
+  return response.json();
+};
+
+export const fetchReviewsByOwnerId = async (ownerId: string): Promise<Review[]> => {
+  const response = await fetch(`${API_BASE_URL}/reviews/owner/${ownerId}`);
+  if (!response.ok) throw new Error("Failed to fetch reviews");
   return response.json();
 };
 
@@ -160,9 +376,66 @@ export const updateBorrowRequest = async (
 ): Promise<BorrowRequest> => {
   const response = await fetch(`${API_BASE_URL}/borrow-requests/${id}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: getJsonHeaders(),
     body: JSON.stringify(updateData),
   });
   if (!response.ok) throw new Error("Failed to update borrow request");
   return response.json();
 };
+
+// Notifications API
+export const fetchNotifications = async (): Promise<Notification[]> => {
+  const response = await fetch(`${API_BASE_URL}/notifications`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error("Failed to fetch notifications");
+  return response.json();
+};
+
+export const fetchUnreadCount = async (): Promise<{ count: number }> => {
+  const response = await fetch(`${API_BASE_URL}/notifications/unread-count`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error("Failed to fetch unread count");
+  return response.json();
+};
+
+export const markNotificationAsRead = async (id: string): Promise<Notification> => {
+  const response = await fetch(`${API_BASE_URL}/notifications/${id}/read`, {
+    method: "PATCH",
+    headers: getJsonHeaders(),
+  });
+  if (!response.ok) throw new Error("Failed to mark notification as read");
+  return response.json();
+};
+
+export const markAllNotificationsAsRead = async (): Promise<{ modifiedCount: number }> => {
+  const response = await fetch(`${API_BASE_URL}/notifications/mark-all-read`, {
+    method: "POST",
+    headers: getJsonHeaders(),
+  });
+  if (!response.ok) throw new Error("Failed to mark all notifications as read");
+  return response.json();
+};
+
+export const deleteNotification = async (id: string): Promise<void> => {
+  const response = await fetch(`${API_BASE_URL}/notifications/${id}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error("Failed to delete notification");
+};
+
+export interface Notification {
+  _id?: string;
+  id?: string;
+  userId: string;
+  type: 'borrow_request' | 'request_approved' | 'request_rejected' | 'item_returned' | 'new_review' | 'system';
+  title: string;
+  message: string;
+  referenceId?: string;
+  referenceType?: 'borrowRequest' | 'item' | 'review';
+  read: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
